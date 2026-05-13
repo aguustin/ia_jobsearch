@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem \"c:\\\\ia_lets_work\" -ErrorAction SilentlyContinue; if \\(-not \\(Test-Path \"c:\\\\ia_lets_work\"\\)\\) { \"Directory empty or new\" })",
+      "Bash(npm install *)",
+      "PowerShell(Invoke-RestMethod \"http://localhost:3001/api/system/fetch\" -Method POST -ContentType \"application/json\" -Body '{\"providers\":\"all\"}' -TimeoutSec 10)"
+    ]
+  }
+}
