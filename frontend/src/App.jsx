@@ -6,6 +6,7 @@ import { JobDetail } from "./pages/JobDetail.jsx";
 import { Profile } from "./pages/Profile.jsx";
 import { Applications } from "./pages/Applications.jsx";
 import { Analytics } from "./pages/Analytics.jsx";
+import { CVGenerator } from "./pages/CVGenerator.jsx";
 import { Snackbar, Alert } from "@mui/material";
 import { useAppStore } from "./store/index.js";
 import { useJobNotifications } from "./hooks/useJobNotifications.js";
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/profile" element={<Profile />} />
         <Route path="/applications" element={<Applications />} />
         <Route path="/analytics" element={<Analytics />} />
+        <Route path="/cv-generator" element={<CVGenerator />} />
       </Routes>
 
       <Snackbar

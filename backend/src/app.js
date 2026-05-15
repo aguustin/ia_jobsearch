@@ -5,6 +5,7 @@ import profileRouter from "./api/routes/profile.js";
 import applicationsRouter from "./api/routes/applications.js";
 import systemRouter from "./api/routes/system.js";
 import analyticsRouter from "./api/routes/analytics.js";
+import cvRouter from "./api/routes/cv.js";
 
 export function createApp() {
   const app = express();
@@ -17,6 +18,7 @@ export function createApp() {
   app.use("/api/applications", applicationsRouter);
   app.use("/api/system", systemRouter);
   app.use("/api/analytics", analyticsRouter);
+  app.use("/api/cv", cvRouter);
 
   app.use((err, req, res, next) => {
     console.error(err);

@@ -9,6 +9,7 @@ import {
   SendOutlined as SendIcon,
   SmartToy as AiIcon,
   BarChart as AnalyticsIcon,
+  AutoAwesome as CvIcon,
   NotificationsActive, NotificationsOff,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -21,6 +22,7 @@ const NAV_ITEMS = [
   { label: "Ofertas",       icon: <WorkIcon />,        path: "/jobs" },
   { label: "Aplicaciones",  icon: <SendIcon />,        path: "/applications" },
   { label: "Analytics",     icon: <AnalyticsIcon />,   path: "/analytics" },
+  { label: "CV ATS",        icon: <CvIcon />,          path: "/cv-generator" },
   { label: "Mi Perfil",     icon: <PersonIcon />,      path: "/profile" },
 ];
 

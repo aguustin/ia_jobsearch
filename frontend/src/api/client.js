@@ -40,3 +40,18 @@ export const systemApi = {
   migrateLanguages: () => api.post("/system/migrate-languages").then((r) => r.data),
   reanalyzeSpanish: () => api.post("/system/reanalyze-spanish").then((r) => r.data),
 };
+
+export const cvApi = {
+  list: () => api.get("/cv").then((r) => r.data),
+  upload: (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.post("/cv/upload", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+      timeout: 120000,
+    }).then((r) => r.data);
+  },
+  delete: (id) => api.delete(`/cv/${id}`).then((r) => r.data),
+  generateATS: (cvId, jobDescription) =>
+    api.post("/cv/generate-ats", { cvId, jobDescription }, { timeout: 600000 }).then((r) => r.data),
+};
