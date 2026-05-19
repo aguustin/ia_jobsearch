@@ -1,22 +1,201 @@
-import { useState } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Box, Typography, Button, Tabs, Tab, Divider,
-  Chip, Stack, IconButton, Tooltip, Skeleton,
+  Chip, Stack, IconButton, Tooltip, Skeleton, TextField,
 } from "@mui/material";
 import {
-  ContentCopy, Download, CheckCircle, Person,
-  Work, School, Code, Translate,
+  ContentCopy, Download, PictureAsPdf, CheckCircle, Person,
+  Work, School, Code, Translate, KeyboardArrowUp,
+  KeyboardArrowDown, Add, DeleteOutline, Refresh, MenuBook,
 } from "@mui/icons-material";
+import { generateCVPDF } from "../../utils/generateCVPDF.js";
 
-function CopyButton({ text }) {
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function normWord(w) {
+  return w.toLowerCase().replace(/[.\-_]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function formatCVText(cv) {
+  const lines = [];
+  const pi = cv.personalInfo || {};
+  const sep = "─".repeat(55);
+  if (pi.name) { lines.push(pi.name.toUpperCase(), ""); }
+  const contact = [pi.email, pi.phone, pi.location, pi.linkedin, pi.github].filter(Boolean);
+  if (contact.length) { lines.push(contact.join("  |  "), ""); }
+  if (cv.summary) { lines.push("RESUMEN PROFESIONAL", sep, cv.summary, ""); }
+  if ((cv.experience || []).length > 0) {
+    lines.push("EXPERIENCIA PROFESIONAL", sep);
+    cv.experience.forEach((exp) => {
+      lines.push(`${exp.role || ""}  —  ${exp.company || ""}`);
+      const p = [exp.startDate, exp.endDate || "Presente"].filter(Boolean).join(" – ");
+      if (p) lines.push(p);
+      (exp.achievements || []).forEach((a) => lines.push(`  • ${a}`));
+      lines.push("");
+    });
+  }
+  if ((cv.skills || []).length > 0) {
+    lines.push("HABILIDADES TÉCNICAS", sep);
+    cv.skills.forEach((sg) => {
+      if (sg.category && sg.items?.length) lines.push(`${sg.category}: ${sg.items.join(", ")}`);
+    });
+    lines.push("");
+  }
+  if ((cv.education || []).length > 0) {
+    lines.push("EDUCACIÓN", sep);
+    cv.education.forEach((edu) => {
+      lines.push(`${edu.degree || ""}  —  ${edu.institution || ""}`);
+      const p = [edu.startDate, edu.endDate].filter(Boolean).join(" – ");
+      if (p) lines.push(p);
+      lines.push("");
+    });
+  }
+  if ((cv.languages || []).length > 0) {
+    lines.push("IDIOMAS", sep);
+    cv.languages.forEach((l) => { if (l.name) lines.push(`${l.name}: ${l.level || ""}`); });
+    lines.push("");
+  }
+  if ((cv.certifications || []).length > 0) {
+    lines.push("FORMACIÓN", sep);
+    cv.certifications.forEach((c) => {
+      if (c.name) lines.push(`${c.name}${c.issuer ? ` | ${c.issuer}` : ""}${c.date ? ` | ${c.date}` : ""}`);
+    });
+  }
+  return lines.join("\n");
+}
+
+// ─── Keyword highlight ────────────────────────────────────────────────────────
+
+function HighlightedText({ text, exactSet, fuzzySet, variant = "body2", sx = {} }) {
+  if (!text) return null;
+  if (!exactSet.size && !fuzzySet.size) {
+    return <Typography variant={variant} sx={sx}>{text}</Typography>;
+  }
+  const tokens = text.split(/(\b[\w.+-]+\b)/);
+  return (
+    <Typography variant={variant} sx={sx} component="span">
+      {tokens.map((token, i) => {
+        const n = normWord(token);
+        if (exactSet.has(n)) {
+          return <Box key={i} component="mark" sx={{ background: "rgba(108,99,255,0.22)", color: "#9B8FFF", px: "2px", borderRadius: "3px" }}>{token}</Box>;
+        }
+        if (fuzzySet.has(n)) {
+          return <Box key={i} component="mark" sx={{ background: "rgba(255,183,77,0.18)", color: "#FFB74D", px: "2px", borderRadius: "3px" }}>{token}</Box>;
+        }
+        return token;
+      })}
+    </Typography>
+  );
+}
+
+// ─── Editable fields ──────────────────────────────────────────────────────────
+
+function EditableText({ value, onChange, variant = "body2", sx = {}, fontWeight, placeholder = "Clic para editar..." }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || "");
+  useEffect(() => setDraft(value || ""), [value]);
+
+  if (editing) {
+    return (
+      <TextField
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => { onChange(draft); setEditing(false); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { onChange(draft); setEditing(false); }
+          if (e.key === "Escape") { setDraft(value || ""); setEditing(false); }
+        }}
+        autoFocus size="small" variant="standard" fullWidth
+        sx={{ "& .MuiInput-root": { color: "text.primary", fontSize: 13 } }}
+      />
+    );
+  }
+  return (
+    <Tooltip title="Clic para editar" placement="top-start" enterDelay={600}>
+      <Box onClick={() => setEditing(true)} sx={{
+        cursor: "text", borderRadius: 0.5, px: 0.5, mx: -0.5, display: "inline-block",
+        width: "100%", minHeight: "1.4em",
+        "&:hover": { bgcolor: "rgba(108,99,255,0.07)", outline: "1px dashed rgba(108,99,255,0.3)" },
+      }}>
+        <Typography variant={variant} fontWeight={fontWeight} sx={sx}>
+          {value || <Box component="span" sx={{ opacity: 0.25, fontStyle: "italic" }}>{placeholder}</Box>}
+        </Typography>
+      </Box>
+    </Tooltip>
+  );
+}
+
+function EditableArea({ value, onChange, variant = "body2", sx = {}, placeholder = "Clic para editar..." }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || "");
+  useEffect(() => setDraft(value || ""), [value]);
+
+  if (editing) {
+    return (
+      <TextField
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => { onChange(draft); setEditing(false); }}
+        onKeyDown={(e) => { if (e.key === "Escape") { setDraft(value || ""); setEditing(false); } }}
+        autoFocus multiline minRows={2} size="small" fullWidth
+        sx={{ "& textarea": { fontSize: 13, lineHeight: 1.8 } }}
+      />
+    );
+  }
+  return (
+    <Tooltip title="Clic para editar" placement="top-start" enterDelay={600}>
+      <Box onClick={() => setEditing(true)} sx={{
+        cursor: "text", borderRadius: 0.5, p: 0.5, m: -0.5, minHeight: "2.5em",
+        "&:hover": { bgcolor: "rgba(108,99,255,0.07)", outline: "1px dashed rgba(108,99,255,0.3)" },
+      }}>
+        <Typography variant={variant} sx={{ lineHeight: 1.8, ...sx }}>
+          {value || <Box component="span" sx={{ opacity: 0.25, fontStyle: "italic" }}>{placeholder}</Box>}
+        </Typography>
+      </Box>
+    </Tooltip>
+  );
+}
+
+// ─── Section header with reorder controls ────────────────────────────────────
+
+function SectionHeader({ icon, title, onUp, onDown, disableUp, disableDown }) {
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+      {icon}
+      <Typography variant="subtitle2" color="primary.light" fontWeight={600} sx={{ flex: 1 }}>
+        {title}
+      </Typography>
+      <Box sx={{ display: "flex", gap: 0.25 }}>
+        <Tooltip title="Subir sección">
+          <span>
+            <IconButton size="small" onClick={onUp} disabled={disableUp}
+              sx={{ width: 22, height: 22, bgcolor: "rgba(255,255,255,0.05)", "&:hover": { bgcolor: "rgba(108,99,255,0.15)" } }}>
+              <KeyboardArrowUp sx={{ fontSize: 15 }} />
+            </IconButton>
+          </span>
+        </Tooltip>
+        <Tooltip title="Bajar sección">
+          <span>
+            <IconButton size="small" onClick={onDown} disabled={disableDown}
+              sx={{ width: 22, height: 22, bgcolor: "rgba(255,255,255,0.05)", "&:hover": { bgcolor: "rgba(108,99,255,0.15)" } }}>
+              <KeyboardArrowDown sx={{ fontSize: 15 }} />
+            </IconButton>
+          </span>
+        </Tooltip>
+      </Box>
+    </Box>
+  );
+}
+
+// ─── Action bar buttons ───────────────────────────────────────────────────────
+
+function CopyButton({ getText }) {
   const [copied, setCopied] = useState(false);
-
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(getText());
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
   return (
     <Tooltip title={copied ? "¡Copiado!" : "Copiar al portapapeles"}>
       <IconButton size="small" onClick={handleCopy} sx={{ color: copied ? "success.main" : "text.secondary" }}>
@@ -26,186 +205,420 @@ function CopyButton({ text }) {
   );
 }
 
-function DownloadButton({ text, filename }) {
+function DownloadTxtButton({ getText, filename }) {
   const handleDownload = () => {
-    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const blob = new Blob([getText()], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
+    a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
   };
-
   return (
-    <Button
-      size="small"
-      variant="outlined"
-      startIcon={<Download />}
-      onClick={handleDownload}
-      sx={{ fontSize: 12 }}
-    >
-      Exportar .txt
+    <Button size="small" variant="outlined" startIcon={<Download />} onClick={handleDownload} sx={{ fontSize: 12 }}>
+      .txt
     </Button>
   );
 }
 
-function SectionHeader({ icon, title }) {
+function DownloadPdfButton({ getCV, filename }) {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-      {icon}
-      <Typography variant="subtitle2" color="primary.light" fontWeight={600}>
-        {title}
-      </Typography>
-    </Box>
+    <Button size="small" variant="contained" startIcon={<PictureAsPdf />}
+      onClick={() => generateCVPDF(getCV(), filename)}
+      sx={{ fontSize: 12, background: "linear-gradient(135deg, #6C63FF 0%, #00D9C5 100%)" }}>
+      Descargar PDF
+    </Button>
   );
 }
 
-function StructuredView({ cv }) {
+// ─── Structured editor ────────────────────────────────────────────────────────
+
+const SECTION_KEYS = ["summary", "experience", "skills", "education", "languages", "certifications"];
+
+function StructuredEditor({ cv, update, sectionOrder, moveSection, exactSet, fuzzySet }) {
   const pi = cv.personalInfo || {};
+
+  const sectionComponents = {
+    summary: cv.summary !== undefined ? (
+      <Box>
+        <SectionHeader
+          icon={<Person sx={{ fontSize: 16, color: "primary.main" }} />}
+          title="Resumen Profesional"
+          onUp={() => moveSection("summary", -1)}
+          onDown={() => moveSection("summary", 1)}
+          disableUp={sectionOrder[0] === "summary"}
+          disableDown={sectionOrder[sectionOrder.length - 1] === "summary"}
+        />
+        <EditableArea
+          value={cv.summary}
+          onChange={(v) => update.summary(v)}
+          sx={{ color: "text.secondary" }}
+          placeholder="Agregá un resumen profesional con keywords de la oferta..."
+        />
+      </Box>
+    ) : null,
+
+    experience: (cv.experience || []).length > 0 ? (
+      <Box>
+        <SectionHeader
+          icon={<Work sx={{ fontSize: 16, color: "secondary.main" }} />}
+          title="Experiencia Profesional"
+          onUp={() => moveSection("experience", -1)}
+          onDown={() => moveSection("experience", 1)}
+          disableUp={sectionOrder[0] === "experience"}
+          disableDown={sectionOrder[sectionOrder.length - 1] === "experience"}
+        />
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {cv.experience.map((exp, i) => (
+            <Box key={i}>
+              <Box sx={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", mb: 0.5, gap: 1 }}>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <EditableText value={exp.role} onChange={(v) => update.expField(i, "role", v)}
+                    variant="body2" fontWeight={600} placeholder="Cargo..." />
+                </Box>
+                <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0 }}>
+                  <EditableText value={exp.startDate} onChange={(v) => update.expField(i, "startDate", v)}
+                    variant="caption" sx={{ color: "text.disabled" }} placeholder="Inicio" />
+                  <Typography variant="caption" color="text.disabled">–</Typography>
+                  <EditableText value={exp.endDate} onChange={(v) => update.expField(i, "endDate", v)}
+                    variant="caption" sx={{ color: "text.disabled" }} placeholder="Fin / Presente" />
+                </Box>
+              </Box>
+              <EditableText value={exp.company} onChange={(v) => update.expField(i, "company", v)}
+                variant="caption" sx={{ color: "primary.light" }} placeholder="Empresa..." />
+              <Box sx={{ mt: 0.75 }}>
+                {(exp.achievements || []).map((a, j) => (
+                  <Box key={j} sx={{ display: "flex", gap: 0.5, mb: 0.4, alignItems: "flex-start" }}>
+                    <Typography variant="caption" color="primary.main" mt={0.1}>•</Typography>
+                    <Box sx={{ flex: 1 }}>
+                      <EditableArea value={a} onChange={(v) => update.achievement(i, j, v)}
+                        variant="caption" sx={{ color: "text.secondary", lineHeight: 1.6 }} />
+                    </Box>
+                    <Tooltip title="Eliminar bullet">
+                      <IconButton size="small" onClick={() => update.removeAchievement(i, j)}
+                        sx={{ color: "text.disabled", "&:hover": { color: "error.main" }, width: 20, height: 20, mt: 0.2 }}>
+                        <DeleteOutline sx={{ fontSize: 14 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                ))}
+                <Button size="small" startIcon={<Add sx={{ fontSize: 13 }} />}
+                  onClick={() => update.addAchievement(i)}
+                  sx={{ fontSize: 11, color: "text.disabled", mt: 0.25, "&:hover": { color: "primary.light" } }}>
+                  Agregar logro
+                </Button>
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      </Box>
+    ) : null,
+
+    skills: (cv.skills || []).length > 0 ? (
+      <Box>
+        <SectionHeader
+          icon={<Code sx={{ fontSize: 16, color: "warning.main" }} />}
+          title="Habilidades Técnicas"
+          onUp={() => moveSection("skills", -1)}
+          onDown={() => moveSection("skills", 1)}
+          disableUp={sectionOrder[0] === "skills"}
+          disableDown={sectionOrder[sectionOrder.length - 1] === "skills"}
+        />
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+          {cv.skills.map((sg, i) => (
+            <Box key={i}>
+              <EditableText value={sg.category} onChange={(v) => update.skillCategory(i, v)}
+                variant="caption" sx={{ color: "text.disabled" }} fontWeight={600}
+                placeholder="Categoría..." />
+              <Stack direction="row" flexWrap="wrap" gap={0.5} mt={0.5}>
+                {(sg.items || []).map((skill, j) => (
+                  <Chip
+                    key={j}
+                    label={
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
+                        <EditableText
+                          value={skill}
+                          onChange={(v) => update.skillItem(i, j, v)}
+                          variant="caption"
+                          sx={{ fontSize: 11 }}
+                          placeholder="skill"
+                        />
+                        <DeleteOutline
+                          onClick={(e) => { e.stopPropagation(); update.removeSkillItem(i, j); }}
+                          sx={{ fontSize: 12, cursor: "pointer", opacity: 0.4, "&:hover": { opacity: 1, color: "error.main" } }}
+                        />
+                      </Box>
+                    }
+                    size="small"
+                    sx={{ height: 26, bgcolor: "rgba(108,99,255,0.1)", color: "primary.light", border: "1px solid rgba(108,99,255,0.2)", px: 0.5 }}
+                  />
+                ))}
+                <Tooltip title="Agregar skill">
+                  <Chip
+                    icon={<Add sx={{ fontSize: 13 }} />}
+                    label="Agregar"
+                    size="small"
+                    onClick={() => update.addSkillItem(i)}
+                    sx={{ height: 26, fontSize: 11, cursor: "pointer", bgcolor: "rgba(255,255,255,0.04)", color: "text.disabled", border: "1px dashed rgba(255,255,255,0.15)", "&:hover": { borderColor: "primary.main", color: "primary.light" } }}
+                  />
+                </Tooltip>
+              </Stack>
+            </Box>
+          ))}
+        </Box>
+      </Box>
+    ) : null,
+
+    education: (cv.education || []).length > 0 ? (
+      <Box>
+        <SectionHeader
+          icon={<School sx={{ fontSize: 16, color: "success.main" }} />}
+          title="Educación"
+          onUp={() => moveSection("education", -1)}
+          onDown={() => moveSection("education", 1)}
+          disableUp={sectionOrder[0] === "education"}
+          disableDown={sectionOrder[sectionOrder.length - 1] === "education"}
+        />
+        {cv.education.map((edu, i) => (
+          <Box key={i} sx={{ mb: 1 }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 1 }}>
+              <EditableText value={edu.degree} onChange={(v) => update.eduField(i, "degree", v)}
+                variant="body2" fontWeight={600} placeholder="Título..." />
+              <Box sx={{ display: "flex", gap: 0.5 }}>
+                <EditableText value={edu.startDate} onChange={(v) => update.eduField(i, "startDate", v)}
+                  variant="caption" sx={{ color: "text.disabled" }} placeholder="Inicio" />
+                <Typography variant="caption" color="text.disabled">–</Typography>
+                <EditableText value={edu.endDate} onChange={(v) => update.eduField(i, "endDate", v)}
+                  variant="caption" sx={{ color: "text.disabled" }} placeholder="Fin" />
+              </Box>
+            </Box>
+            <EditableText value={edu.institution} onChange={(v) => update.eduField(i, "institution", v)}
+              variant="caption" sx={{ color: "text.secondary" }} placeholder="Institución..." />
+          </Box>
+        ))}
+      </Box>
+    ) : null,
+
+    languages: (cv.languages || []).length > 0 ? (
+      <Box>
+        <SectionHeader
+          icon={<Translate sx={{ fontSize: 16, color: "info.main" }} />}
+          title="Idiomas"
+          onUp={() => moveSection("languages", -1)}
+          onDown={() => moveSection("languages", 1)}
+          disableUp={sectionOrder[0] === "languages"}
+          disableDown={sectionOrder[sectionOrder.length - 1] === "languages"}
+        />
+        <Stack direction="row" gap={3} flexWrap="wrap">
+          {cv.languages.map((l, i) => (
+            <Box key={i}>
+              <EditableText value={l.name} onChange={(v) => update.langField(i, "name", v)}
+                variant="body2" fontWeight={600} placeholder="Idioma..." />
+              <EditableText value={l.level} onChange={(v) => update.langField(i, "level", v)}
+                variant="caption" sx={{ color: "text.secondary" }} placeholder="Nivel..." />
+            </Box>
+          ))}
+        </Stack>
+      </Box>
+    ) : null,
+
+    certifications: (cv.certifications || []).length > 0 ? (
+      <Box>
+        <SectionHeader
+          icon={<MenuBook sx={{ fontSize: 16, color: "secondary.main" }} />}
+          title="Formación"
+          onUp={() => moveSection("certifications", -1)}
+          onDown={() => moveSection("certifications", 1)}
+          disableUp={sectionOrder[0] === "certifications"}
+          disableDown={sectionOrder[sectionOrder.length - 1] === "certifications"}
+        />
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          {(cv.certifications || []).map((c, i) => (
+            <Box key={i} sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
+              <Box sx={{ flex: 1, display: "flex", flexWrap: "wrap", gap: 0.5, alignItems: "center" }}>
+                <EditableText value={c.name} onChange={(v) => update.certField(i, "name", v)}
+                  variant="body2" fontWeight={500} placeholder="Nombre del certificado..." />
+                <Typography variant="caption" color="text.disabled">|</Typography>
+                <EditableText value={c.issuer} onChange={(v) => update.certField(i, "issuer", v)}
+                  variant="caption" sx={{ color: "primary.light" }} placeholder="Institución..." />
+                <Typography variant="caption" color="text.disabled">|</Typography>
+                <EditableText value={c.date} onChange={(v) => update.certField(i, "date", v)}
+                  variant="caption" sx={{ color: "text.disabled" }} placeholder="Período..." />
+              </Box>
+              <Tooltip title="Eliminar">
+                <IconButton size="small" onClick={() => update.removeCert(i)}
+                  sx={{ color: "text.disabled", "&:hover": { color: "error.main" }, width: 20, height: 20 }}>
+                  <DeleteOutline sx={{ fontSize: 14 }} />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          ))}
+          <Button size="small" startIcon={<Add sx={{ fontSize: 13 }} />}
+            onClick={() => update.addCert()}
+            sx={{ fontSize: 11, color: "text.disabled", alignSelf: "flex-start", "&:hover": { color: "primary.light" } }}>
+            Agregar certificación
+          </Button>
+        </Box>
+      </Box>
+    ) : null,
+  };
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      {/* Header */}
+      {/* Personal info — always at top, not reorderable */}
       <Box>
-        {pi.name && (
-          <Typography variant="h5" fontWeight={700} mb={0.5}>
-            {pi.name}
-          </Typography>
-        )}
-        <Stack direction="row" flexWrap="wrap" gap={1}>
-          {[pi.email, pi.phone, pi.location, pi.linkedin, pi.github]
-            .filter(Boolean)
-            .map((val, i) => (
-              <Typography key={i} variant="caption" color="text.secondary">
-                {val}
-              </Typography>
-            ))}
+        <EditableText value={pi.name} onChange={(v) => update.personalInfo("name", v)}
+          variant="h5" fontWeight={700} placeholder="Tu nombre..." />
+        <Stack direction="row" flexWrap="wrap" gap={1} mt={0.5}>
+          {["email", "phone", "location", "linkedin", "github"].map((field) => (
+            <EditableText key={field} value={pi[field]} onChange={(v) => update.personalInfo(field, v)}
+              variant="caption" sx={{ color: "text.secondary" }} placeholder={field + "..."} />
+          ))}
         </Stack>
       </Box>
 
-      {cv.summary && (
-        <>
-          <Divider />
-          <Box>
-            <SectionHeader icon={<Person sx={{ fontSize: 16, color: "primary.main" }} />} title="Resumen Profesional" />
-            <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.8 }}>
-              {cv.summary}
-            </Typography>
+      {/* Reorderable sections */}
+      {sectionOrder.map((key) => {
+        const section = sectionComponents[key];
+        if (!section) return null;
+        return (
+          <Box key={key}>
+            <Divider sx={{ mb: 2 }} />
+            {section}
           </Box>
-        </>
-      )}
-
-      {(cv.experience || []).length > 0 && (
-        <>
-          <Divider />
-          <Box>
-            <SectionHeader icon={<Work sx={{ fontSize: 16, color: "secondary.main" }} />} title="Experiencia Profesional" />
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {cv.experience.map((exp, i) => (
-                <Box key={i}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", mb: 0.5 }}>
-                    <Typography variant="body2" fontWeight={600}>{exp.role}</Typography>
-                    <Typography variant="caption" color="text.disabled">
-                      {[exp.startDate, exp.endDate || "Presente"].filter(Boolean).join(" – ")}
-                    </Typography>
-                  </Box>
-                  <Typography variant="caption" color="primary.light" mb={0.75} display="block">
-                    {exp.company}
-                  </Typography>
-                  {(exp.achievements || []).map((a, j) => (
-                    <Box key={j} sx={{ display: "flex", gap: 1, mb: 0.4 }}>
-                      <Typography variant="caption" color="primary.main" mt={0.1}>•</Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.6 }}>
-                        {a}
-                      </Typography>
-                    </Box>
-                  ))}
-                </Box>
-              ))}
-            </Box>
-          </Box>
-        </>
-      )}
-
-      {(cv.skills || []).length > 0 && (
-        <>
-          <Divider />
-          <Box>
-            <SectionHeader icon={<Code sx={{ fontSize: 16, color: "warning.main" }} />} title="Habilidades Técnicas" />
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-              {cv.skills.map((sg, i) => (
-                <Box key={i}>
-                  {sg.category && (
-                    <Typography variant="caption" color="text.disabled" fontWeight={600} display="block" mb={0.5}>
-                      {sg.category}
-                    </Typography>
-                  )}
-                  <Stack direction="row" flexWrap="wrap" gap={0.5}>
-                    {(sg.items || []).map((skill, j) => (
-                      <Chip
-                        key={j}
-                        label={skill}
-                        size="small"
-                        sx={{
-                          fontSize: 11,
-                          height: 22,
-                          bgcolor: "rgba(108,99,255,0.1)",
-                          color: "primary.light",
-                          border: "1px solid rgba(108,99,255,0.2)",
-                        }}
-                      />
-                    ))}
-                  </Stack>
-                </Box>
-              ))}
-            </Box>
-          </Box>
-        </>
-      )}
-
-      {(cv.education || []).length > 0 && (
-        <>
-          <Divider />
-          <Box>
-            <SectionHeader icon={<School sx={{ fontSize: 16, color: "success.main" }} />} title="Educación" />
-            {cv.education.map((edu, i) => (
-              <Box key={i} sx={{ mb: 1 }}>
-                <Box sx={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap" }}>
-                  <Typography variant="body2" fontWeight={600}>{edu.degree}</Typography>
-                  <Typography variant="caption" color="text.disabled">
-                    {[edu.startDate, edu.endDate].filter(Boolean).join(" – ")}
-                  </Typography>
-                </Box>
-                <Typography variant="caption" color="text.secondary">{edu.institution}</Typography>
-              </Box>
-            ))}
-          </Box>
-        </>
-      )}
-
-      {(cv.languages || []).length > 0 && (
-        <>
-          <Divider />
-          <Box>
-            <SectionHeader icon={<Translate sx={{ fontSize: 16, color: "info.main" }} />} title="Idiomas" />
-            <Stack direction="row" gap={2}>
-              {cv.languages.map((l, i) => (
-                <Box key={i}>
-                  <Typography variant="body2" fontWeight={600}>{l.name}</Typography>
-                  <Typography variant="caption" color="text.secondary">{l.level}</Typography>
-                </Box>
-              ))}
-            </Stack>
-          </Box>
-        </>
-      )}
+        );
+      })}
     </Box>
   );
 }
 
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export function CVPreview({ result, isGenerating }) {
   const [tab, setTab] = useState(0);
+  const [editedCV, setEditedCV] = useState(null);
+  const [sectionOrder, setSectionOrder] = useState(SECTION_KEYS);
+
+  // Reset state when a new result arrives
+  useEffect(() => {
+    if (result?.optimizedCV) {
+      setEditedCV(JSON.parse(JSON.stringify(result.optimizedCV)));
+      setSectionOrder(SECTION_KEYS);
+    }
+  }, [result?.optimizedCV]);
+
+  const { exactSet, fuzzySet } = useMemo(() => {
+    if (!result?.finalScore) return { exactSet: new Set(), fuzzySet: new Set() };
+    const fuzzy = new Set((result.finalScore.keywordsFuzzy || []).map(normWord));
+    const exact = new Set(
+      (result.finalScore.keywordsFound || []).map(normWord).filter((k) => !fuzzy.has(k))
+    );
+    return { exactSet: exact, fuzzySet: fuzzy };
+  }, [result]);
+
+  // ─── Update helpers ────────────────────────────────────────────────────────
+  const update = {
+    summary: useCallback((v) => setEditedCV((p) => ({ ...p, summary: v })), []),
+    personalInfo: useCallback((field, v) =>
+      setEditedCV((p) => ({ ...p, personalInfo: { ...p.personalInfo, [field]: v } })), []),
+    expField: useCallback((i, field, v) =>
+      setEditedCV((p) => {
+        const exp = [...p.experience];
+        exp[i] = { ...exp[i], [field]: v };
+        return { ...p, experience: exp };
+      }), []),
+    achievement: useCallback((i, j, v) =>
+      setEditedCV((p) => {
+        const exp = [...p.experience];
+        const ach = [...(exp[i].achievements || [])];
+        ach[j] = v;
+        exp[i] = { ...exp[i], achievements: ach };
+        return { ...p, experience: exp };
+      }), []),
+    addAchievement: useCallback((i) =>
+      setEditedCV((p) => {
+        const exp = [...p.experience];
+        exp[i] = { ...exp[i], achievements: [...(exp[i].achievements || []), ""] };
+        return { ...p, experience: exp };
+      }), []),
+    removeAchievement: useCallback((i, j) =>
+      setEditedCV((p) => {
+        const exp = [...p.experience];
+        exp[i] = { ...exp[i], achievements: exp[i].achievements.filter((_, k) => k !== j) };
+        return { ...p, experience: exp };
+      }), []),
+    skillCategory: useCallback((i, v) =>
+      setEditedCV((p) => {
+        const skills = [...p.skills];
+        skills[i] = { ...skills[i], category: v };
+        return { ...p, skills };
+      }), []),
+    skillItem: useCallback((i, j, v) =>
+      setEditedCV((p) => {
+        const skills = [...p.skills];
+        const items = [...skills[i].items];
+        items[j] = v;
+        skills[i] = { ...skills[i], items };
+        return { ...p, skills };
+      }), []),
+    addSkillItem: useCallback((i) =>
+      setEditedCV((p) => {
+        const skills = [...p.skills];
+        skills[i] = { ...skills[i], items: [...skills[i].items, ""] };
+        return { ...p, skills };
+      }), []),
+    removeSkillItem: useCallback((i, j) =>
+      setEditedCV((p) => {
+        const skills = [...p.skills];
+        skills[i] = { ...skills[i], items: skills[i].items.filter((_, k) => k !== j) };
+        return { ...p, skills };
+      }), []),
+    eduField: useCallback((i, field, v) =>
+      setEditedCV((p) => {
+        const education = [...p.education];
+        education[i] = { ...education[i], [field]: v };
+        return { ...p, education };
+      }), []),
+    langField: useCallback((i, field, v) =>
+      setEditedCV((p) => {
+        const languages = [...p.languages];
+        languages[i] = { ...languages[i], [field]: v };
+        return { ...p, languages };
+      }), []),
+    certField: useCallback((i, field, v) =>
+      setEditedCV((p) => {
+        const certifications = [...(p.certifications || [])];
+        certifications[i] = { ...certifications[i], [field]: v };
+        return { ...p, certifications };
+      }), []),
+    addCert: useCallback(() =>
+      setEditedCV((p) => ({
+        ...p,
+        certifications: [...(p.certifications || []), { name: "", issuer: "", date: "" }],
+      })), []),
+    removeCert: useCallback((i) =>
+      setEditedCV((p) => ({
+        ...p,
+        certifications: (p.certifications || []).filter((_, k) => k !== i),
+      })), []),
+  };
+
+  const moveSection = useCallback((key, dir) => {
+    setSectionOrder((prev) => {
+      const idx = prev.indexOf(key);
+      const newIdx = idx + dir;
+      if (newIdx < 0 || newIdx >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
+      return next;
+    });
+  }, []);
+
+  const resetEdits = useCallback(() => {
+    if (result?.optimizedCV) {
+      setEditedCV(JSON.parse(JSON.stringify(result.optimizedCV)));
+      setSectionOrder(SECTION_KEYS);
+    }
+  }, [result]);
 
   if (isGenerating) {
     return (
@@ -217,22 +630,13 @@ export function CVPreview({ result, isGenerating }) {
     );
   }
 
-  if (!result) return null;
+  if (!result || !editedCV) return null;
 
-  const { optimizedCV, optimizedText } = result;
+  const filename = `CV_ATS_${new Date().toISOString().slice(0, 10)}`;
 
   return (
     <Box>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 2,
-          flexWrap: "wrap",
-          gap: 1,
-        }}
-      >
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 1 }}>
         <Tabs
           value={tab}
           onChange={(_, v) => setTab(v)}
@@ -242,31 +646,37 @@ export function CVPreview({ result, isGenerating }) {
           <Tab label="Texto plano" />
         </Tabs>
         <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-          <CopyButton text={optimizedText} />
-          <DownloadButton
-            text={optimizedText}
-            filename={`CV_ATS_optimizado_${new Date().toISOString().slice(0, 10)}.txt`}
-          />
+          {tab === 0 && (
+            <Tooltip title="Deshacer todos los cambios">
+              <IconButton size="small" onClick={resetEdits} sx={{ color: "text.disabled" }}>
+                <Refresh fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+          <CopyButton getText={() => formatCVText(editedCV)} />
+          <DownloadTxtButton getText={() => formatCVText(editedCV)} filename={`${filename}.txt`} />
+          <DownloadPdfButton getCV={() => editedCV} filename={`${filename}.pdf`} />
         </Box>
       </Box>
 
-      {tab === 0 && <StructuredView cv={optimizedCV} />}
+      {tab === 0 && (
+        <StructuredEditor
+          cv={editedCV}
+          update={update}
+          sectionOrder={sectionOrder}
+          moveSection={moveSection}
+          exactSet={exactSet}
+          fuzzySet={fuzzySet}
+        />
+      )}
 
       {tab === 1 && (
-        <Box
-          component="pre"
-          sx={{
-            fontFamily: '"JetBrains Mono", "Fira Code", monospace',
-            fontSize: 12,
-            lineHeight: 1.8,
-            color: "text.secondary",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            m: 0,
-            p: 0,
-          }}
-        >
-          {optimizedText}
+        <Box component="pre" sx={{
+          fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+          fontSize: 12, lineHeight: 1.8, color: "text.secondary",
+          whiteSpace: "pre-wrap", wordBreak: "break-word", m: 0, p: 0,
+        }}>
+          {formatCVText(editedCV)}
         </Box>
       )}
     </Box>

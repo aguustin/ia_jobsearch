@@ -54,4 +54,6 @@ export const cvApi = {
   delete: (id) => api.delete(`/cv/${id}`).then((r) => r.data),
   generateATS: (cvId, jobDescription) =>
     api.post("/cv/generate-ats", { cvId, jobDescription }, { timeout: 600000 }).then((r) => r.data),
+  compareATS: (cvId1, cvId2, jobDescription) =>
+    api.post("/cv/compare-ats", { cvId1, cvId2, jobDescription }, { timeout: 300000 }).then((r) => r.data),
 };

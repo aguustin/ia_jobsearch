@@ -91,21 +91,57 @@ router.post("/generate-ats", async (req, res) => {
     // Step 1: extract keywords and requirements from JD
     const jdAnalysis = await atsOptimizerService.analyzeJobDescription(jobDescription);
 
-    // Step 2: score original CV against JD
-    const initialScore = atsOptimizerService.calculateATSScore(cv.parsed, jdAnalysis);
+    // Step 2: score original CV against JD (include rawText so keywords match even if Ollama parse was incomplete)
+    const initialScore = atsOptimizerService.calculateATSScore(cv.parsed, jdAnalysis, cv.rawText);
 
     // Step 3: optimize CV with AI
     const optimizedCV = await atsOptimizerService.optimizeCV(cv.rawText, cv.parsed, jobDescription, jdAnalysis);
 
-    // Step 4: score optimized CV
-    const finalScore = atsOptimizerService.calculateATSScore(optimizedCV, jdAnalysis);
+    // Step 5: render text version and apply keyword replacements
+    const rawText = atsOptimizerService.formatOptimizedCVText(optimizedCV);
+    const optimizedText = atsOptimizerService.applyKeywordReplacements(rawText, jdAnalysis.keywords);
 
-    // Step 5: render text version
-    const optimizedText = atsOptimizerService.formatOptimizedCVText(optimizedCV);
+    // Step 4: score optimized CV — combine optimizedText + original rawText so that if Ollama
+    // optimization failed and returned sparse structure, the score doesn't drop to zero
+    const finalScore = atsOptimizerService.calculateATSScore(
+      optimizedCV, jdAnalysis, optimizedText + " " + cv.rawText
+    );
 
     res.json({ initialScore, finalScore, jdAnalysis, optimizedCV, optimizedText });
   } catch (err) {
     console.error("[CV generate-ats]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/cv/compare-ats — score two CVs against the same job description
+router.post("/compare-ats", async (req, res) => {
+  try {
+    const { cvId1, cvId2, jobDescription } = req.body;
+
+    if (!cvId1 || !cvId2) return res.status(400).json({ error: "Se requieren cvId1 y cvId2" });
+    if (!jobDescription || jobDescription.trim().length < 50) {
+      return res.status(400).json({ error: "La descripción laboral debe tener al menos 50 caracteres" });
+    }
+
+    const [cv1, cv2] = await Promise.all([CV.findById(cvId1), CV.findById(cvId2)]);
+    if (!cv1) return res.status(404).json({ error: "CV 1 no encontrado" });
+    if (!cv2) return res.status(404).json({ error: "CV 2 no encontrado" });
+
+    const jdAnalysis = await atsOptimizerService.analyzeJobDescription(jobDescription);
+
+    const [score1, score2] = await Promise.all([
+      atsOptimizerService.calculateATSScore(cv1.parsed, jdAnalysis, cv1.rawText),
+      atsOptimizerService.calculateATSScore(cv2.parsed, jdAnalysis, cv2.rawText),
+    ]);
+
+    res.json({
+      jdAnalysis,
+      cv1: { _id: cv1._id, originalName: cv1.originalName, score: score1 },
+      cv2: { _id: cv2._id, originalName: cv2.originalName, score: score2 },
+    });
+  } catch (err) {
+    console.error("[CV compare-ats]", err);
     res.status(500).json({ error: err.message });
   }
 });
