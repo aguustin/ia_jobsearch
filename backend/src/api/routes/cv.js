@@ -101,15 +101,40 @@ router.post("/generate-ats", async (req, res) => {
     const rawText = atsOptimizerService.formatOptimizedCVText(optimizedCV);
     const optimizedText = atsOptimizerService.applyKeywordReplacements(rawText, jdAnalysis.keywords);
 
-    // Step 4: score optimized CV — combine optimizedText + original rawText so that if Ollama
-    // optimization failed and returned sparse structure, the score doesn't drop to zero
-    const finalScore = atsOptimizerService.calculateATSScore(
+    // Step 4: score optimized CV (pre-injection)
+    const preScore = atsOptimizerService.calculateATSScore(
       optimizedCV, jdAnalysis, optimizedText + " " + cv.rawText
     );
 
-    res.json({ initialScore, finalScore, jdAnalysis, optimizedCV, optimizedText });
+    // Step 5: inject still-missing keywords into skill categories for easy review/removal
+    const optimizedCVWithKeywords = atsOptimizerService.injectMissingKeywords(
+      optimizedCV, preScore.keywordsMissing
+    );
+
+    // Step 6: recalculate final score with injected keywords
+    const finalRawText = atsOptimizerService.formatOptimizedCVText(optimizedCVWithKeywords);
+    const finalOptimizedText = atsOptimizerService.applyKeywordReplacements(finalRawText, jdAnalysis.keywords);
+    const finalScore = atsOptimizerService.calculateATSScore(
+      optimizedCVWithKeywords, jdAnalysis, finalOptimizedText + " " + cv.rawText
+    );
+
+    res.json({ initialScore, finalScore, jdAnalysis, optimizedCV: optimizedCVWithKeywords, optimizedText: finalOptimizedText });
   } catch (err) {
     console.error("[CV generate-ats]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/cv/score-live — real-time scoring while editing (no AI, pure regex)
+router.post("/score-live", async (req, res) => {
+  try {
+    const { parsedCV, jdAnalysis, rawText = "" } = req.body;
+    if (!parsedCV || !jdAnalysis) {
+      return res.status(400).json({ error: "Se requieren parsedCV y jdAnalysis" });
+    }
+    const score = atsOptimizerService.calculateATSScore(parsedCV, jdAnalysis, rawText);
+    res.json(score);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

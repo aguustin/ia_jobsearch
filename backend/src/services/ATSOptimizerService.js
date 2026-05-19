@@ -514,6 +514,67 @@ Devuelve SOLO un JSON válido con esta estructura:
     return recs.slice(0, 6);
   }
 
+  // ─── Missing keyword injection ───────────────────────────────────────────────
+
+  // Distributes missing JD keywords into existing skill categories where possible,
+  // and creates a "Stack adicional" group for anything that doesn't fit.
+  injectMissingKeywords(optimizedCV, missingKeywords) {
+    if (!missingKeywords?.length) return optimizedCV;
+
+    const skills = (optimizedCV.skills || []).map((sg) => ({ ...sg, items: [...sg.items] }));
+
+    // Signals for auto-categorization
+    const SIGNALS = [
+      { signals: ["frontend", "client", "ui", "web"],           keys: ["react", "vue", "angular", "html", "css", "javascript", "typescript", "svelte", "next", "nuxt", "bootstrap", "tailwind", "jquery", "webpack", "vite"] },
+      { signals: ["backend", "server", "api"],                  keys: ["node", "express", "python", "django", "flask", "java", "spring", "php", "ruby", "rails", "golang", "go", "nestjs", "fastapi", "laravel", "aspnet", "dotnet"] },
+      { signals: ["base", "dato", "database", "db"],            keys: ["postgresql", "postgres", "mysql", "mongodb", "redis", "elasticsearch", "sqlite", "cassandra", "dynamodb", "mariadb", "oracle", "sql"] },
+      { signals: ["devops", "cloud", "infra", "deploy", "ci"],  keys: ["docker", "kubernetes", "aws", "azure", "gcp", "terraform", "jenkins", "ansible", "cicd", "helm", "linux", "github", "gitlab"] },
+      { signals: ["mobile", "movil", "móvil"],                  keys: ["react native", "flutter", "android", "ios", "swift", "kotlin", "ionic"] },
+    ];
+
+    const unmatched = [];
+
+    for (const kw of missingKeywords) {
+      const kwNorm = kw.toLowerCase().replace(/[.\-_]/g, "");
+      let placed = false;
+
+      for (const sg of skills) {
+        const catNorm = (sg.category || "").toLowerCase();
+        for (const { signals, keys } of SIGNALS) {
+          if (!signals.some((s) => catNorm.includes(s))) continue;
+          if (!keys.some((k) => kwNorm.startsWith(k.slice(0, 4)) || k.startsWith(kwNorm.slice(0, 4)))) continue;
+          if (!sg.items.some((item) => item.toLowerCase().replace(/[.\-_]/g, "") === kwNorm)) {
+            sg.items.push(this._prettifyKeyword(kw));
+          }
+          placed = true;
+          break;
+        }
+        if (placed) break;
+      }
+      if (!placed) unmatched.push(kw);
+    }
+
+    if (unmatched.length > 0) {
+      skills.push({ category: "Stack adicional", items: unmatched.map((kw) => this._prettifyKeyword(kw)) });
+    }
+
+    return { ...optimizedCV, skills };
+  }
+
+  _prettifyKeyword(kw) {
+    const MAP = {
+      javascript: "JavaScript", typescript: "TypeScript", nodejs: "Node.js",
+      reactjs: "ReactJS", vuejs: "VueJS", angularjs: "AngularJS",
+      postgresql: "PostgreSQL", mongodb: "MongoDB", kubernetes: "Kubernetes",
+      github: "GitHub", gitlab: "GitLab", graphql: "GraphQL",
+      html: "HTML", css: "CSS", sql: "SQL", aws: "AWS", gcp: "GCP",
+      php: "PHP", api: "API", rest: "REST", cicd: "CI/CD",
+    };
+    const norm = kw.toLowerCase().replace(/[.\-_]/g, "");
+    if (MAP[norm]) return MAP[norm];
+    return kw.length <= 4 ? kw.toUpperCase() : kw.charAt(0).toUpperCase() + kw.slice(1);
+  }
+
   // ─── Text Formatter ──────────────────────────────────────────────────────────
 
   formatOptimizedCVText(optimizedCV) {

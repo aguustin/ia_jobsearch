@@ -1,14 +1,18 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   Box, Typography, Button, Tabs, Tab, Divider,
-  Chip, Stack, IconButton, Tooltip, Skeleton, TextField,
+  Chip, Stack, IconButton, Tooltip, Skeleton, TextField, CircularProgress,
 } from "@mui/material";
 import {
   ContentCopy, Download, PictureAsPdf, CheckCircle, Person,
   Work, School, Code, Translate, KeyboardArrowUp,
   KeyboardArrowDown, Add, DeleteOutline, Refresh, MenuBook,
+  AddAPhoto,
 } from "@mui/icons-material";
 import { generateCVPDF } from "../../utils/generateCVPDF.js";
+import { cvApi } from "../../api/client.js";
+import { scoreColor } from "../../theme.js";
+import { useProfilePhoto } from "../../hooks/useProfilePhoto.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -220,13 +224,65 @@ function DownloadTxtButton({ getText, filename }) {
   );
 }
 
-function DownloadPdfButton({ getCV, filename }) {
+function DownloadPdfButton({ getCV, filename, getPhoto }) {
   return (
     <Button size="small" variant="contained" startIcon={<PictureAsPdf />}
-      onClick={() => generateCVPDF(getCV(), filename)}
+      onClick={() => generateCVPDF(getCV(), filename, getPhoto?.())}
       sx={{ fontSize: 12, background: "linear-gradient(135deg, #6C63FF 0%, #00D9C5 100%)" }}>
       Descargar PDF
     </Button>
+  );
+}
+
+// ─── Profile photo upload ─────────────────────────────────────────────────────
+
+function PhotoUpload({ photo, onUpload, onRemove }) {
+  const inputRef = useRef(null);
+
+  const handleFile = (e) => {
+    if (e.target.files[0]) onUpload(e.target.files[0]);
+  };
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
+      <input ref={inputRef} type="file" accept="image/*" hidden onChange={handleFile} />
+      <Tooltip title={photo ? "Reemplazar foto" : "Agregar foto de perfil"}>
+        <Box
+          onClick={() => inputRef.current.click()}
+          sx={{
+            width: 72, height: 72, borderRadius: "50%", cursor: "pointer",
+            border: photo ? "2px solid rgba(108,99,255,0.5)" : "2px dashed rgba(108,99,255,0.3)",
+            overflow: "hidden", position: "relative", flexShrink: 0,
+            bgcolor: "rgba(108,99,255,0.05)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            "&:hover .photo-overlay": { opacity: 1 },
+          }}
+        >
+          {photo
+            ? <Box component="img" src={photo} sx={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            : <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.25, color: "text.disabled" }}>
+                <AddAPhoto sx={{ fontSize: 20 }} />
+                <Typography variant="caption" fontSize={9}>Foto</Typography>
+              </Box>
+          }
+          <Box className="photo-overlay" sx={{
+            position: "absolute", inset: 0, bgcolor: "rgba(0,0,0,0.55)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            opacity: 0, transition: "opacity 0.15s",
+          }}>
+            <AddAPhoto sx={{ fontSize: 20, color: "white" }} />
+          </Box>
+        </Box>
+      </Tooltip>
+      {photo && (
+        <Typography
+          variant="caption" fontSize={10} color="text.disabled" sx={{ cursor: "pointer", "&:hover": { color: "error.light" } }}
+          onClick={onRemove}
+        >
+          Quitar foto
+        </Typography>
+      )}
+    </Box>
   );
 }
 
@@ -234,7 +290,7 @@ function DownloadPdfButton({ getCV, filename }) {
 
 const SECTION_KEYS = ["summary", "experience", "skills", "education", "languages", "certifications"];
 
-function StructuredEditor({ cv, update, sectionOrder, moveSection, exactSet, fuzzySet }) {
+function StructuredEditor({ cv, update, sectionOrder, moveSection, exactSet, fuzzySet, photo, onPhotoUpload, onPhotoRemove }) {
   const pi = cv.personalInfo || {};
 
   const sectionComponents = {
@@ -465,15 +521,18 @@ function StructuredEditor({ cv, update, sectionOrder, moveSection, exactSet, fuz
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
       {/* Personal info — always at top, not reorderable */}
-      <Box>
-        <EditableText value={pi.name} onChange={(v) => update.personalInfo("name", v)}
-          variant="h5" fontWeight={700} placeholder="Tu nombre..." />
-        <Stack direction="row" flexWrap="wrap" gap={1} mt={0.5}>
-          {["email", "phone", "location", "linkedin", "github"].map((field) => (
-            <EditableText key={field} value={pi[field]} onChange={(v) => update.personalInfo(field, v)}
-              variant="caption" sx={{ color: "text.secondary" }} placeholder={field + "..."} />
-          ))}
-        </Stack>
+      <Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <EditableText value={pi.name} onChange={(v) => update.personalInfo("name", v)}
+            variant="h5" fontWeight={700} placeholder="Tu nombre..." />
+          <Stack direction="row" flexWrap="wrap" gap={1} mt={0.5}>
+            {["email", "phone", "location", "linkedin", "github"].map((field) => (
+              <EditableText key={field} value={pi[field]} onChange={(v) => update.personalInfo(field, v)}
+                variant="caption" sx={{ color: "text.secondary" }} placeholder={field + "..."} />
+            ))}
+          </Stack>
+        </Box>
+        <PhotoUpload photo={photo} onUpload={onPhotoUpload} onRemove={onPhotoRemove} />
       </Box>
 
       {/* Reorderable sections */}
@@ -494,17 +553,41 @@ function StructuredEditor({ cv, update, sectionOrder, moveSection, exactSet, fuz
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function CVPreview({ result, isGenerating }) {
+  const { photo, uploadPhoto, removePhoto } = useProfilePhoto();
   const [tab, setTab] = useState(0);
   const [editedCV, setEditedCV] = useState(null);
   const [sectionOrder, setSectionOrder] = useState(SECTION_KEYS);
+  const [liveScore, setLiveScore] = useState(null);
+  const [scoreLoading, setScoreLoading] = useState(false);
+  const debounceRef = useRef(null);
 
   // Reset state when a new result arrives
   useEffect(() => {
     if (result?.optimizedCV) {
       setEditedCV(JSON.parse(JSON.stringify(result.optimizedCV)));
       setSectionOrder(SECTION_KEYS);
+      setLiveScore(result.finalScore);
     }
   }, [result?.optimizedCV]);
+
+  // Recalculate score 800ms after the user stops editing
+  useEffect(() => {
+    if (!editedCV || !result?.jdAnalysis) return;
+    clearTimeout(debounceRef.current);
+    setScoreLoading(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const rawText = formatCVText(editedCV);
+        const score = await cvApi.scoreLive(editedCV, result.jdAnalysis, rawText);
+        setLiveScore(score);
+      } catch {
+        // silently ignore score errors
+      } finally {
+        setScoreLoading(false);
+      }
+    }, 800);
+    return () => clearTimeout(debounceRef.current);
+  }, [editedCV, result?.jdAnalysis]);
 
   const { exactSet, fuzzySet } = useMemo(() => {
     if (!result?.finalScore) return { exactSet: new Set(), fuzzySet: new Set() };
@@ -646,6 +729,27 @@ export function CVPreview({ result, isGenerating }) {
           <Tab label="Texto plano" />
         </Tabs>
         <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+          {/* Live ATS score badge */}
+          {liveScore && (
+            <Tooltip title={`Score ATS en tiempo real · ${liveScore.keywordsFound?.length ?? 0} keywords encontradas`}>
+              <Box sx={{
+                display: "flex", alignItems: "center", gap: 0.75,
+                px: 1.25, py: 0.4, borderRadius: 2,
+                bgcolor: "rgba(255,255,255,0.04)",
+                border: `1px solid ${scoreColor(liveScore.score)}40`,
+              }}>
+                {scoreLoading
+                  ? <CircularProgress size={12} sx={{ color: "text.disabled" }} />
+                  : <Box sx={{ width: 8, height: 8, borderRadius: "50%", bgcolor: scoreColor(liveScore.score) }} />
+                }
+                <Typography variant="caption" fontWeight={700} sx={{ color: scoreColor(liveScore.score) }}>
+                  ATS {liveScore.score}
+                </Typography>
+                <Typography variant="caption" color="text.disabled">/100</Typography>
+              </Box>
+            </Tooltip>
+          )}
+
           {tab === 0 && (
             <Tooltip title="Deshacer todos los cambios">
               <IconButton size="small" onClick={resetEdits} sx={{ color: "text.disabled" }}>
@@ -655,7 +759,7 @@ export function CVPreview({ result, isGenerating }) {
           )}
           <CopyButton getText={() => formatCVText(editedCV)} />
           <DownloadTxtButton getText={() => formatCVText(editedCV)} filename={`${filename}.txt`} />
-          <DownloadPdfButton getCV={() => editedCV} filename={`${filename}.pdf`} />
+          <DownloadPdfButton getCV={() => editedCV} filename={`${filename}.pdf`} getPhoto={() => photo} />
         </Box>
       </Box>
 
@@ -667,6 +771,9 @@ export function CVPreview({ result, isGenerating }) {
           moveSection={moveSection}
           exactSet={exactSet}
           fuzzySet={fuzzySet}
+          photo={photo}
+          onPhotoUpload={uploadPhoto}
+          onPhotoRemove={removePhoto}
         />
       )}
 

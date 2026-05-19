@@ -56,4 +56,6 @@ export const cvApi = {
     api.post("/cv/generate-ats", { cvId, jobDescription }, { timeout: 600000 }).then((r) => r.data),
   compareATS: (cvId1, cvId2, jobDescription) =>
     api.post("/cv/compare-ats", { cvId1, cvId2, jobDescription }, { timeout: 300000 }).then((r) => r.data),
+  scoreLive: (parsedCV, jdAnalysis, rawText = "") =>
+    api.post("/cv/score-live", { parsedCV, jdAnalysis, rawText }, { timeout: 15000 }).then((r) => r.data),
 };

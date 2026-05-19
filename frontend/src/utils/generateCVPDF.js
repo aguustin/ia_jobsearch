@@ -65,18 +65,60 @@ function wrappedText(doc, y, text, maxW = CONTENT_W, fontSize = 9, style = "norm
   return y;
 }
 
-export function generateCVPDF(optimizedCV, filename = "CV_ATS_optimizado.pdf") {
+export function generateCVPDF(optimizedCV, filename = "CV_ATS_optimizado.pdf", photo = null) {
   const doc = new jsPDF({ orientation: "p", unit: "mm", format: "a4" });
   const pi = optimizedCV.personalInfo || {};
   let y = MARGIN;
+
+  // ─── PHOTO (top-right) ───────────────────────────────────────────────────────
+  const PHOTO_SIZE = 32;
+  // jsPDF text y = baseline; 20pt Helvetica Bold cap-height ≈ 5mm above baseline,
+  // so shift photo up to visually align its top edge with the name text top.
+  const PHOTO_Y = MARGIN - 5;
+  const textW = photo ? CONTENT_W - PHOTO_SIZE - 5 : CONTENT_W;
+
+  if (photo) {
+    try {
+      const fmt = photo.startsWith("data:image/png") ? "PNG" : "JPEG";
+      const r  = PHOTO_SIZE / 2;
+      const px = PAGE_W - MARGIN - PHOTO_SIZE;
+      const cx = px + r;
+      const cy = PHOTO_Y + r;
+
+      // Circular clip using PDF path operators
+      const pageH = doc.internal.pageSize.getHeight();
+      const k     = doc.internal.scaleFactor;
+      const cxPt  = cx * k;
+      const cyPt  = (pageH - cy) * k;
+      const rPt   = r * k;
+      const cp    = 0.5523 * rPt; // bezier control point for circle
+
+      doc.internal.write("q");
+      doc.internal.write(
+        `${cxPt - rPt} ${cyPt} m ` +
+        `${cxPt - rPt} ${cyPt + cp} ${cxPt - cp} ${cyPt + rPt} ${cxPt} ${cyPt + rPt} c ` +
+        `${cxPt + cp} ${cyPt + rPt} ${cxPt + rPt} ${cyPt + cp} ${cxPt + rPt} ${cyPt} c ` +
+        `${cxPt + rPt} ${cyPt - cp} ${cxPt + cp} ${cyPt - rPt} ${cxPt} ${cyPt - rPt} c ` +
+        `${cxPt - cp} ${cyPt - rPt} ${cxPt - rPt} ${cyPt - cp} ${cxPt - rPt} ${cyPt} c ` +
+        "W n"
+      );
+      doc.addImage(photo, fmt, px, PHOTO_Y, PHOTO_SIZE, PHOTO_SIZE);
+      doc.internal.write("Q");
+
+      // Light gray circular border
+      doc.setDrawColor(200, 200, 210);
+      doc.setLineWidth(0.5);
+      doc.ellipse(cx, cy, r, r, "S");
+    } catch { /* ignore broken photo */ }
+  }
 
   // ─── HEADER ─────────────────────────────────────────────────────────────────
   if (pi.name) {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(20);
     doc.setTextColor(...C_PRIMARY);
-    doc.text(pi.name.toUpperCase(), MARGIN, y);
-    y += 8;
+    const nameLines = doc.splitTextToSize(pi.name.toUpperCase(), textW);
+    nameLines.forEach((line) => { doc.text(line, MARGIN, y); y += 8; });
   }
 
   const contactParts = [pi.email, pi.phone, pi.location, pi.linkedin, pi.github].filter(Boolean);
@@ -85,12 +127,12 @@ export function generateCVPDF(optimizedCV, filename = "CV_ATS_optimizado.pdf") {
     doc.setFontSize(8.5);
     doc.setTextColor(...C_MUTED);
     const contactLine = contactParts.join("  ·  ");
-    const lines = doc.splitTextToSize(contactLine, CONTENT_W);
-    lines.forEach((line) => {
-      doc.text(line, MARGIN, y);
-      y += 5;
-    });
+    const lines = doc.splitTextToSize(contactLine, textW);
+    lines.forEach((line) => { doc.text(line, MARGIN, y); y += 5; });
   }
+
+  // If photo is taller than the text, align y to bottom of photo
+  if (photo) y = Math.max(y, PHOTO_Y + PHOTO_SIZE + 2);
 
   // Header divider
   y += 2;
@@ -115,10 +157,29 @@ export function generateCVPDF(optimizedCV, filename = "CV_ATS_optimizado.pdf") {
   }
 
   // ─── EXPERIENCE ─────────────────────────────────────────────────────────────
-  if ((optimizedCV.experience || []).length > 0) {
+  // Split at the "Proyectos Destacados" header entry: everything before = experience,
+  // everything AFTER the header = individual project entries
+  const allExp = optimizedCV.experience || [];
+  const projHeaderIdx = allExp.findIndex((e) =>
+    /proyecto[s]?\s+destacados?/i.test(e.role || "") ||
+    /proyecto[s]?\s+destacados?/i.test(e.company || "")
+  );
+
+  const regularExp = projHeaderIdx === -1 ? allExp : allExp.slice(0, projHeaderIdx);
+  let projectExp   = projHeaderIdx === -1 ? [] : allExp.slice(projHeaderIdx + 1);
+
+  // Edge case: all projects stored as achievements of a single header entry
+  if (projectExp.length === 0 && projHeaderIdx !== -1) {
+    const header = allExp[projHeaderIdx];
+    if (header.achievements?.length) {
+      projectExp = header.achievements.map((a) => ({ role: a, achievements: [] }));
+    }
+  }
+
+  if (regularExp.length > 0) {
     y = sectionHeader(doc, y, "Experiencia Profesional");
 
-    optimizedCV.experience.forEach((exp) => {
+    regularExp.forEach((exp) => {
       y = ensureSpace(doc, y, 12);
 
       // Role + Company
@@ -153,6 +214,31 @@ export function generateCVPDF(optimizedCV, filename = "CV_ATS_optimizado.pdf") {
       });
 
       y += 3;
+    });
+
+    y += SECTION_GAP - 5;
+  }
+
+  // ─── PROYECTOS DESTACADOS ────────────────────────────────────────────────────
+  if (projectExp.length > 0) {
+    y = sectionHeader(doc, y, "Proyectos Destacados");
+
+    projectExp.forEach((exp) => {
+      y = ensureSpace(doc, y, 10);
+
+      // Project name (role field)
+      const projectName = (exp.role || "").replace(/proyecto[s]?\s+destacados?:?\s*/i, "").trim();
+      if (projectName) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9.5);
+        doc.setTextColor(...C_TEXT);
+        doc.text(projectName, MARGIN, y);
+        y += LINE_GAP;
+      }
+
+      // Achievements / description
+      (exp.achievements || []).forEach((a) => { y = bullet(doc, y, a, 3); });
+      y += 2;
     });
 
     y += SECTION_GAP - 5;
