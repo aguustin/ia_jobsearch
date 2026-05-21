@@ -288,7 +288,7 @@ function PhotoUpload({ photo, onUpload, onRemove }) {
 
 // ─── Structured editor ────────────────────────────────────────────────────────
 
-const SECTION_KEYS = ["summary", "experience", "skills", "education", "languages", "certifications"];
+const SECTION_KEYS = ["summary", "skills", "experience", "education", "certifications", "languages"];
 
 function StructuredEditor({ cv, update, sectionOrder, moveSection, exactSet, fuzzySet, photo, onPhotoUpload, onPhotoRemove }) {
   const pi = cv.personalInfo || {};
@@ -313,61 +313,93 @@ function StructuredEditor({ cv, update, sectionOrder, moveSection, exactSet, fuz
       </Box>
     ) : null,
 
-    experience: (cv.experience || []).length > 0 ? (
-      <Box>
-        <SectionHeader
-          icon={<Work sx={{ fontSize: 16, color: "secondary.main" }} />}
-          title="Experiencia Profesional"
-          onUp={() => moveSection("experience", -1)}
-          onDown={() => moveSection("experience", 1)}
-          disableUp={sectionOrder[0] === "experience"}
-          disableDown={sectionOrder[sectionOrder.length - 1] === "experience"}
-        />
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {cv.experience.map((exp, i) => (
-            <Box key={i}>
-              <Box sx={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", mb: 0.5, gap: 1 }}>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <EditableText value={exp.role} onChange={(v) => update.expField(i, "role", v)}
-                    variant="body2" fontWeight={600} placeholder="Cargo..." />
-                </Box>
-                <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0 }}>
+    experience: (() => {
+      const allExp = cv.experience || [];
+      if (allExp.length === 0) return null;
+
+      const projIdx = allExp.findIndex((e) => /proyecto[s]?\s+destacados?/i.test(e.role || ""));
+      const regularEntries = projIdx === -1 ? allExp : allExp.slice(0, projIdx);
+      const projectEntries = projIdx === -1 ? [] : allExp.slice(projIdx);
+
+      const renderEntry = (exp, i) => {
+        const isHeader = /proyecto[s]?\s+destacados?/i.test(exp.role || "");
+        return (
+          <Box key={i}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", mb: 0.5, gap: 1 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <EditableText value={exp.role} onChange={(v) => update.expField(i, "role", v)}
+                  variant="body2" fontWeight={600} placeholder="Cargo / Proyecto..." />
+              </Box>
+              {!isHeader && (
+                <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0, alignItems: "center" }}>
                   <EditableText value={exp.startDate} onChange={(v) => update.expField(i, "startDate", v)}
                     variant="caption" sx={{ color: "text.disabled" }} placeholder="Inicio" />
                   <Typography variant="caption" color="text.disabled">–</Typography>
                   <EditableText value={exp.endDate} onChange={(v) => update.expField(i, "endDate", v)}
                     variant="caption" sx={{ color: "text.disabled" }} placeholder="Fin / Presente" />
+                  <Tooltip title="Eliminar entrada">
+                    <IconButton size="small" onClick={() => update.removeExp(i)}
+                      sx={{ color: "text.disabled", "&:hover": { color: "error.main" }, width: 20, height: 20, ml: 0.25 }}>
+                      <DeleteOutline sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Tooltip>
                 </Box>
-              </Box>
-              <EditableText value={exp.company} onChange={(v) => update.expField(i, "company", v)}
-                variant="caption" sx={{ color: "primary.light" }} placeholder="Empresa..." />
-              <Box sx={{ mt: 0.75 }}>
-                {(exp.achievements || []).map((a, j) => (
-                  <Box key={j} sx={{ display: "flex", gap: 0.5, mb: 0.4, alignItems: "flex-start" }}>
-                    <Typography variant="caption" color="primary.main" mt={0.1}>•</Typography>
-                    <Box sx={{ flex: 1 }}>
-                      <EditableArea value={a} onChange={(v) => update.achievement(i, j, v)}
-                        variant="caption" sx={{ color: "text.secondary", lineHeight: 1.6 }} />
-                    </Box>
-                    <Tooltip title="Eliminar bullet">
-                      <IconButton size="small" onClick={() => update.removeAchievement(i, j)}
-                        sx={{ color: "text.disabled", "&:hover": { color: "error.main" }, width: 20, height: 20, mt: 0.2 }}>
-                        <DeleteOutline sx={{ fontSize: 14 }} />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                ))}
-                <Button size="small" startIcon={<Add sx={{ fontSize: 13 }} />}
-                  onClick={() => update.addAchievement(i)}
-                  sx={{ fontSize: 11, color: "text.disabled", mt: 0.25, "&:hover": { color: "primary.light" } }}>
-                  Agregar logro
-                </Button>
-              </Box>
+              )}
             </Box>
-          ))}
+            {!isHeader && (
+              <>
+                <EditableText value={exp.company} onChange={(v) => update.expField(i, "company", v)}
+                  variant="caption" sx={{ color: "primary.light" }} placeholder="Empresa / Stack..." />
+                <Box sx={{ mt: 0.75 }}>
+                  {(exp.achievements || []).map((a, j) => (
+                    <Box key={j} sx={{ display: "flex", gap: 0.5, mb: 0.4, alignItems: "flex-start" }}>
+                      <Typography variant="caption" color="primary.main" mt={0.1}>•</Typography>
+                      <Box sx={{ flex: 1 }}>
+                        <EditableArea value={a} onChange={(v) => update.achievement(i, j, v)}
+                          variant="caption" sx={{ color: "text.secondary", lineHeight: 1.6 }} />
+                      </Box>
+                      <Tooltip title="Eliminar bullet">
+                        <IconButton size="small" onClick={() => update.removeAchievement(i, j)}
+                          sx={{ color: "text.disabled", "&:hover": { color: "error.main" }, width: 20, height: 20, mt: 0.2 }}>
+                          <DeleteOutline sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                  ))}
+                  <Button size="small" startIcon={<Add sx={{ fontSize: 13 }} />}
+                    onClick={() => update.addAchievement(i)}
+                    sx={{ fontSize: 11, color: "text.disabled", mt: 0.25, "&:hover": { color: "primary.light" } }}>
+                    Agregar logro
+                  </Button>
+                </Box>
+              </>
+            )}
+          </Box>
+        );
+      };
+
+      return (
+        <Box>
+          <SectionHeader
+            icon={<Work sx={{ fontSize: 16, color: "secondary.main" }} />}
+            title="Experiencia Profesional"
+            onUp={() => moveSection("experience", -1)}
+            onDown={() => moveSection("experience", 1)}
+            disableUp={sectionOrder[0] === "experience"}
+            disableDown={sectionOrder[sectionOrder.length - 1] === "experience"}
+          />
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {regularEntries.map((exp, i) => renderEntry(exp, i))}
+            <Button size="small" startIcon={<Add sx={{ fontSize: 13 }} />}
+              onClick={() => update.addExp()}
+              sx={{ fontSize: 11, color: "text.disabled", alignSelf: "flex-start", "&:hover": { color: "secondary.light" } }}>
+              Agregar experiencia profesional
+            </Button>
+            {projectEntries.map((exp, i) => renderEntry(exp, projIdx + i))}
+          </Box>
         </Box>
-      </Box>
-    ) : null,
+      );
+    })(),
 
     skills: (cv.skills || []).length > 0 ? (
       <Box>
@@ -526,7 +558,7 @@ function StructuredEditor({ cv, update, sectionOrder, moveSection, exactSet, fuz
           <EditableText value={pi.name} onChange={(v) => update.personalInfo("name", v)}
             variant="h5" fontWeight={700} placeholder="Tu nombre..." />
           <Stack direction="row" flexWrap="wrap" gap={1} mt={0.5}>
-            {["email", "phone", "location", "linkedin", "github"].map((field) => (
+            {["email", "phone", "location", "linkedin", "github", "portfolio"].map((field) => (
               <EditableText key={field} value={pi[field]} onChange={(v) => update.personalInfo(field, v)}
                 variant="caption" sx={{ color: "text.secondary" }} placeholder={field + "..."} />
             ))}
@@ -667,6 +699,19 @@ export function CVPreview({ result, isGenerating }) {
         languages[i] = { ...languages[i], [field]: v };
         return { ...p, languages };
       }), []),
+    addExp: useCallback(() =>
+      setEditedCV((p) => {
+        const exp = [...p.experience];
+        const projIdx = exp.findIndex((e) => /proyecto[s]?\s+destacados?/i.test(e.role || ""));
+        const idx = projIdx === -1 ? exp.length : projIdx;
+        exp.splice(idx, 0, { role: "", company: "", startDate: "", endDate: "", achievements: [] });
+        return { ...p, experience: exp };
+      }), []),
+    removeExp: useCallback((i) =>
+      setEditedCV((p) => ({
+        ...p,
+        experience: p.experience.filter((_, k) => k !== i),
+      })), []),
     certField: useCallback((i, field, v) =>
       setEditedCV((p) => {
         const certifications = [...(p.certifications || [])];

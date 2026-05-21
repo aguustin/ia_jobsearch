@@ -1,5 +1,5 @@
 import { ollamaService } from "./OllamaService.js";
-import { DEFAULT_PERSONAL_INFO, DEFAULT_CERTIFICATIONS } from "../config/userDefaults.js";
+import { DEFAULT_PERSONAL_INFO, DEFAULT_CERTIFICATIONS, DEFAULT_PROJECTS, DEFAULT_SUMMARY, DEFAULT_SKILL_CATEGORIES } from "../config/userDefaults.js";
 
 // ─── Tech keyword dictionary (covers multilingual JDs with EN tech terms) ───
 const TECH_TERMS = [
@@ -298,13 +298,27 @@ Devuelve SOLO un JSON válido con esta estructura:
     const hasSkills = (arr) => Array.isArray(arr) && arr.some((sg) => sg.items?.length > 0);
     const hasExp    = (arr) => Array.isArray(arr) && arr.length > 0;
 
+    const extractedSkills = this._extractSkillsFromText(rawText);
     const skills = hasSkills(raw.skills)
       ? raw.skills
       : hasSkills(original.skills)
         ? original.skills
-        : this._extractSkillsFromText(rawText);
+        : hasSkills(extractedSkills)
+          ? extractedSkills
+          : DEFAULT_SKILL_CATEGORIES;
 
-    const experience = hasExp(raw.experience) ? raw.experience : (original.experience || []);
+    // Strip any AI-generated projects section and always inject defaults
+    const rawExp = hasExp(raw.experience) ? raw.experience : (original.experience || []);
+    const projIdx = rawExp.findIndex((e) =>
+      /proyecto[s]?\s+destacados?/i.test(e.role || "") ||
+      /proyecto[s]?\s+destacados?/i.test(e.company || "")
+    );
+    const regularExp = projIdx === -1 ? rawExp : rawExp.slice(0, projIdx);
+    const experience = [
+      ...regularExp,
+      { role: "Proyectos Destacados", company: "", startDate: "", endDate: "", achievements: [] },
+      ...DEFAULT_PROJECTS,
+    ];
 
     // Merge personal info: Ollama → original parsed → hardcoded user defaults
     const piBase = raw.personalInfo || original.personalInfo || {};
@@ -315,13 +329,14 @@ Devuelve SOLO un JSON válido con esta estructura:
       phone:    pick(piBase.phone,    original.personalInfo?.phone),
       location: pick(piBase.location, original.personalInfo?.location) || DEFAULT_PERSONAL_INFO.location,
       linkedin: pick(piBase.linkedin, original.personalInfo?.linkedin) || DEFAULT_PERSONAL_INFO.linkedin,
-      github:   pick(piBase.github,   original.personalInfo?.github)   || DEFAULT_PERSONAL_INFO.github,
-      website:  pick(piBase.website,  original.personalInfo?.website),
+      github:    pick(piBase.github,    original.personalInfo?.github)    || DEFAULT_PERSONAL_INFO.github,
+      portfolio: pick(piBase.portfolio, original.personalInfo?.portfolio) || DEFAULT_PERSONAL_INFO.portfolio,
+      website:   pick(piBase.website,   original.personalInfo?.website),
     };
 
     return {
       personalInfo,
-      summary: raw.summary || original.summary || "",
+      summary: raw.summary || original.summary || DEFAULT_SUMMARY,
       experience,
       skills,
       education: hasExp(raw.education) ? raw.education : (original.education || []),

@@ -14,6 +14,30 @@ const C_TEXT = [30, 30, 40];
 const C_MUTED = [110, 110, 130];
 const C_DIVIDER = [230, 230, 240];
 
+// Fixes experience entries where all fields are concatenated in the role string:
+// "Desarrollador PHP | DivisionGIS — Mendoza, Argentina  Mar 2020 – Feb 2022"
+function normalizeExpEntry(exp) {
+  if (exp.company || !exp.role || !exp.role.includes(" | ")) return exp;
+
+  const pipeIdx   = exp.role.indexOf(" | ");
+  const role      = exp.role.slice(0, pipeIdx).trim();
+  const rest      = exp.role.slice(pipeIdx + 3);
+  const dateRe    = /\s{2,}([A-Za-záéíóúÁÉÍÓÚ]{3}\.?\s*\d{4})\s*[–\-]\s*([A-Za-záéíóúÁÉÍÓÚ]{3}\.?\s*\d{4}|Presente|Actual)?\s*$/i;
+  const dm        = rest.match(dateRe);
+  const fixDate   = (d) => d?.replace(/([A-Za-z]{3})(\d{4})/, "$1 $2").trim() ?? "";
+
+  let company   = dm ? rest.slice(0, dm.index).trim() : rest;
+  company       = company.replace(/\s*—\s*.+$/, "").trim(); // strip "— City, Country"
+
+  return {
+    ...exp,
+    role,
+    company,
+    startDate: exp.startDate || (dm ? fixDate(dm[1]) : ""),
+    endDate:   exp.endDate   || (dm && dm[2] ? fixDate(dm[2]) : ""),
+  };
+}
+
 function ensureSpace(doc, y, needed = 10) {
   if (y + needed > PAGE_H - MARGIN) {
     doc.addPage();
@@ -122,13 +146,21 @@ export function generateCVPDF(optimizedCV, filename = "CV_ATS_optimizado.pdf", p
   }
 
   const contactParts = [pi.email, pi.phone, pi.location, pi.linkedin, pi.github].filter(Boolean);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
   if (contactParts.length) {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
     doc.setTextColor(...C_MUTED);
     const contactLine = contactParts.join("  ·  ");
     const lines = doc.splitTextToSize(contactLine, textW);
     lines.forEach((line) => { doc.text(line, MARGIN, y); y += 5; });
+  }
+  if (pi.portfolio) {
+    const display    = pi.portfolio.replace(/^https?:\/\//, "");
+    const url        = pi.portfolio.startsWith("http") ? pi.portfolio : `https://${pi.portfolio}`;
+    doc.setTextColor(...C_PRIMARY);
+    doc.textWithLink(display, MARGIN, y, { url });
+    y += 5;
+    doc.setTextColor(...C_MUTED);
   }
 
   // If photo is taller than the text, align y to bottom of photo
@@ -179,7 +211,8 @@ export function generateCVPDF(optimizedCV, filename = "CV_ATS_optimizado.pdf", p
   if (regularExp.length > 0) {
     y = sectionHeader(doc, y, "Experiencia Profesional");
 
-    regularExp.forEach((exp) => {
+    regularExp.forEach((rawExp) => {
+      const exp = normalizeExpEntry(rawExp);
       y = ensureSpace(doc, y, 12);
 
       // Role + Company
