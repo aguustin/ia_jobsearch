@@ -106,9 +106,9 @@ router.post("/generate-ats", async (req, res) => {
       optimizedCV, jdAnalysis, optimizedText + " " + cv.rawText
     );
 
-    // Step 5: inject still-missing keywords into skill categories for easy review/removal
+    // Step 5: inject all JD keywords into skill categories so every keyword appears in Habilidades Técnicas
     const optimizedCVWithKeywords = atsOptimizerService.injectMissingKeywords(
-      optimizedCV, preScore.keywordsMissing
+      optimizedCV, jdAnalysis.keywords
     );
 
     // Step 6: recalculate final score with injected keywords

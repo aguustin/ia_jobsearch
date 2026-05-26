@@ -11,7 +11,7 @@ export const DEFAULT_SKILL_CATEGORIES = [
   { category: "Frontend",        items: ["React", "Next.js", "React Native", "TypeScript", "JavaScript", "HTML5", "CSS3", "TailwindCSS", "Expo"] },
   { category: "Backend",         items: ["Node.js", "Express.js", "Python", "Django", "PHP", "REST API", "JWT", "Socket.io"] },
   { category: "Base de datos",   items: ["MongoDB", "PostgreSQL", "MySQL"] },
-  { category: "Devops",          items: ["Docker", "Git", "GitHub", "Vercel", "MinIO"] },
+  { category: "DevOps",          items: ["Docker", "Git", "GitHub", "Vercel", "MinIO"] },
   { category: "Herramientas",    items: ["Postman", "VS Code", "Figma", "Jira"] },
   { category: "Stack adicional", items: [] },
 ];
@@ -27,6 +27,25 @@ export const DEFAULT_CERTIFICATIONS = [
   { name: "SCRUM",                                 issuer: "Kodigo",     date: "May 2023 – Jul 2023" },
   { name: "React Native",                          issuer: "Coderhouse", date: "Jul 2022 – Oct 2022" },
   { name: "Desarrollador Python + Django",         issuer: "Udemy",      date: "Ago 2024 – Nov 2024" },
+];
+
+// Regular experience entries always used as canonical base (role/company/dates come from here;
+// Ollama achievements are merged in when available)
+export const DEFAULT_REGULAR_EXPERIENCE = [
+  {
+    role: "Desarrollador Web Full Stack",
+    company: "Municipalidad de Godoy Cruz — Mendoza, Argentina",
+    startDate: "Feb 2022",
+    endDate: "Presente",
+    achievements: [],
+  },
+  {
+    role: "Desarrollador PHP",
+    company: "DivisionGIS — Mendoza, Argentina",
+    startDate: "Mar 2020",
+    endDate: "Feb 2022",
+    achievements: [],
+  },
 ];
 
 // Projects always injected after regular experience (replace anything Ollama generates)

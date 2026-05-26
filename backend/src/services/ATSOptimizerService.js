@@ -1,5 +1,5 @@
 import { ollamaService } from "./OllamaService.js";
-import { DEFAULT_PERSONAL_INFO, DEFAULT_CERTIFICATIONS, DEFAULT_PROJECTS, DEFAULT_SUMMARY, DEFAULT_SKILL_CATEGORIES } from "../config/userDefaults.js";
+import { DEFAULT_PERSONAL_INFO, DEFAULT_CERTIFICATIONS, DEFAULT_PROJECTS, DEFAULT_SUMMARY, DEFAULT_SKILL_CATEGORIES, DEFAULT_REGULAR_EXPERIENCE } from "../config/userDefaults.js";
 
 // ─── Tech keyword dictionary (covers multilingual JDs with EN tech terms) ───
 const TECH_TERMS = [
@@ -313,7 +313,16 @@ Devuelve SOLO un JSON válido con esta estructura:
       /proyecto[s]?\s+destacados?/i.test(e.role || "") ||
       /proyecto[s]?\s+destacados?/i.test(e.company || "")
     );
-    const regularExp = projIdx === -1 ? rawExp : rawExp.slice(0, projIdx);
+    const rawRegularExp = projIdx === -1 ? rawExp : rawExp.slice(0, projIdx);
+
+    // Always use canonical role/company/dates from defaults; merge Ollama achievements when available
+    const regularExp = DEFAULT_REGULAR_EXPERIENCE.map((defaultEntry, idx) => ({
+      ...defaultEntry,
+      achievements: rawRegularExp[idx]?.achievements?.length
+        ? rawRegularExp[idx].achievements
+        : defaultEntry.achievements,
+    })).concat(rawRegularExp.slice(DEFAULT_REGULAR_EXPERIENCE.length));
+
     const experience = [
       ...regularExp,
       { role: "Proyectos Destacados", company: "", startDate: "", endDate: "", achievements: [] },
@@ -533,10 +542,15 @@ Devuelve SOLO un JSON válido con esta estructura:
 
   // Distributes missing JD keywords into existing skill categories where possible,
   // and creates a "Stack adicional" group for anything that doesn't fit.
-  injectMissingKeywords(optimizedCV, missingKeywords) {
-    if (!missingKeywords?.length) return optimizedCV;
+  injectMissingKeywords(optimizedCV, allKeywords) {
+    if (!allKeywords?.length) return optimizedCV;
 
     const skills = (optimizedCV.skills || []).map((sg) => ({ ...sg, items: [...sg.items] }));
+
+    // Build a cross-category dedup set so we don't add keywords already present in any category
+    const existingNorm = new Set(
+      skills.flatMap((sg) => sg.items.map((item) => item.toLowerCase().replace(/[.\-_]/g, "")))
+    );
 
     // Signals for auto-categorization
     const SIGNALS = [
@@ -549,8 +563,12 @@ Devuelve SOLO un JSON válido con esta estructura:
 
     const unmatched = [];
 
-    for (const kw of missingKeywords) {
+    for (const kw of allKeywords) {
       const kwNorm = kw.toLowerCase().replace(/[.\-_]/g, "");
+
+      // Skip keywords already present in any category
+      if (existingNorm.has(kwNorm)) continue;
+
       let placed = false;
 
       for (const sg of skills) {
@@ -558,9 +576,8 @@ Devuelve SOLO un JSON válido con esta estructura:
         for (const { signals, keys } of SIGNALS) {
           if (!signals.some((s) => catNorm.includes(s))) continue;
           if (!keys.some((k) => kwNorm.startsWith(k.slice(0, 4)) || k.startsWith(kwNorm.slice(0, 4)))) continue;
-          if (!sg.items.some((item) => item.toLowerCase().replace(/[.\-_]/g, "") === kwNorm)) {
-            sg.items.push(this._prettifyKeyword(kw));
-          }
+          sg.items.push(this._prettifyKeyword(kw));
+          existingNorm.add(kwNorm);
           placed = true;
           break;
         }
@@ -570,7 +587,14 @@ Devuelve SOLO un JSON válido con esta estructura:
     }
 
     if (unmatched.length > 0) {
-      skills.push({ category: "Stack adicional", items: unmatched.map((kw) => this._prettifyKeyword(kw)) });
+      // Append to existing "Stack adicional" category if present, else create one
+      const stackCat = skills.find((sg) => sg.category === "Stack adicional");
+      if (stackCat) {
+        const prettified = unmatched.map((kw) => this._prettifyKeyword(kw));
+        stackCat.items.push(...prettified.filter((p) => !stackCat.items.includes(p)));
+      } else {
+        skills.push({ category: "Stack adicional", items: unmatched.map((kw) => this._prettifyKeyword(kw)) });
+      }
     }
 
     return { ...optimizedCV, skills };

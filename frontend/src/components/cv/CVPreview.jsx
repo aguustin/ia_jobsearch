@@ -7,8 +7,10 @@ import {
   ContentCopy, Download, PictureAsPdf, CheckCircle, Person,
   Work, School, Code, Translate, KeyboardArrowUp,
   KeyboardArrowDown, Add, DeleteOutline, Refresh, MenuBook,
-  AddAPhoto,
+  AddAPhoto, DragIndicator,
 } from "@mui/icons-material";
+import { DndContext, DragOverlay, useDraggable, useDroppable, pointerWithin } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { generateCVPDF } from "../../utils/generateCVPDF.js";
 import { cvApi } from "../../api/client.js";
 import { scoreColor } from "../../theme.js";
@@ -157,6 +159,147 @@ function EditableArea({ value, onChange, variant = "body2", sx = {}, placeholder
         </Typography>
       </Box>
     </Tooltip>
+  );
+}
+
+// ─── Skill drag & drop ────────────────────────────────────────────────────────
+
+function DraggableSkillChip({ id, skill, onEdit, onDelete }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
+  return (
+    <Chip
+      ref={setNodeRef}
+      label={
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
+          <Box
+            component="span"
+            {...listeners}
+            {...attributes}
+            sx={{ cursor: isDragging ? "grabbing" : "grab", display: "flex", alignItems: "center", touchAction: "none" }}
+          >
+            <DragIndicator sx={{ fontSize: 12, opacity: 0.35, "&:hover": { opacity: 0.7 } }} />
+          </Box>
+          <EditableText value={skill} onChange={onEdit} variant="caption" sx={{ fontSize: 11 }} placeholder="skill" />
+          <DeleteOutline
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            sx={{ fontSize: 12, cursor: "pointer", opacity: 0.4, "&:hover": { opacity: 1, color: "error.main" } }}
+          />
+        </Box>
+      }
+      size="small"
+      sx={{
+        height: 26,
+        bgcolor: "rgba(108,99,255,0.1)",
+        color: "primary.light",
+        border: "1px solid rgba(108,99,255,0.2)",
+        px: 0.5,
+        opacity: isDragging ? 0.35 : 1,
+        transition: "opacity 0.12s",
+      }}
+    />
+  );
+}
+
+function DroppableCategory({ id, children }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <Box
+      ref={setNodeRef}
+      sx={{
+        borderRadius: 1,
+        p: 0.75,
+        m: -0.75,
+        border: `1px dashed ${isOver ? "rgba(108,99,255,0.55)" : "transparent"}`,
+        bgcolor: isOver ? "rgba(108,99,255,0.06)" : "transparent",
+        transition: "border-color 0.12s, background-color 0.12s",
+      }}
+    >
+      {children}
+    </Box>
+  );
+}
+
+function SkillsSection({ skills, update, moveSection, sectionOrder }) {
+  const [activeDragId, setActiveDragId] = useState(null);
+
+  const activeDragLabel = activeDragId ? (() => {
+    const [, ci, ii] = activeDragId.split("-").map(Number);
+    return skills[ci]?.items[ii] || "";
+  })() : null;
+
+  const handleDragStart = ({ active }) => setActiveDragId(active.id);
+
+  const handleDragEnd = ({ active, over }) => {
+    setActiveDragId(null);
+    if (!over) return;
+    const [, fromCat, fromItem] = active.id.split("-").map(Number);
+    const [, toCat] = over.id.split("-").map(Number);
+    if (fromCat !== toCat) update.moveSkill(fromCat, fromItem, toCat);
+  };
+
+  return (
+    <Box>
+      <SectionHeader
+        icon={<Code sx={{ fontSize: 16, color: "warning.main" }} />}
+        title="Habilidades Técnicas"
+        onUp={() => moveSection("skills", -1)}
+        onDown={() => moveSection("skills", 1)}
+        disableUp={sectionOrder[0] === "skills"}
+        disableDown={sectionOrder[sectionOrder.length - 1] === "skills"}
+      />
+      <DndContext collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+          {skills.map((sg, i) => (
+            <DroppableCategory key={i} id={`cat-${i}`}>
+              <EditableText
+                value={sg.category}
+                onChange={(v) => update.skillCategory(i, v)}
+                variant="caption"
+                sx={{ color: "text.disabled" }}
+                fontWeight={600}
+                placeholder="Categoría..."
+              />
+              <Stack direction="row" flexWrap="wrap" gap={0.5} mt={0.5}>
+                {(sg.items || []).map((skill, j) => (
+                  <DraggableSkillChip
+                    key={j}
+                    id={`skill-${i}-${j}`}
+                    skill={skill}
+                    onEdit={(v) => update.skillItem(i, j, v)}
+                    onDelete={() => update.removeSkillItem(i, j)}
+                  />
+                ))}
+                <Tooltip title="Agregar skill">
+                  <Chip
+                    icon={<Add sx={{ fontSize: 13 }} />}
+                    label="Agregar"
+                    size="small"
+                    onClick={() => update.addSkillItem(i)}
+                    sx={{ height: 26, fontSize: 11, cursor: "pointer", bgcolor: "rgba(255,255,255,0.04)", color: "text.disabled", border: "1px dashed rgba(255,255,255,0.15)", "&:hover": { borderColor: "primary.main", color: "primary.light" } }}
+                  />
+                </Tooltip>
+              </Stack>
+            </DroppableCategory>
+          ))}
+        </Box>
+        <DragOverlay>
+          {activeDragLabel && (
+            <Chip
+              label={activeDragLabel}
+              size="small"
+              sx={{
+                height: 26,
+                bgcolor: "rgba(108,99,255,0.9)",
+                color: "white",
+                border: "1px solid rgba(108,99,255,0.5)",
+                cursor: "grabbing",
+                boxShadow: "0 4px 14px rgba(108,99,255,0.45)",
+              }}
+            />
+          )}
+        </DragOverlay>
+      </DndContext>
+    </Box>
   );
 }
 
@@ -402,58 +545,12 @@ function StructuredEditor({ cv, update, sectionOrder, moveSection, exactSet, fuz
     })(),
 
     skills: (cv.skills || []).length > 0 ? (
-      <Box>
-        <SectionHeader
-          icon={<Code sx={{ fontSize: 16, color: "warning.main" }} />}
-          title="Habilidades Técnicas"
-          onUp={() => moveSection("skills", -1)}
-          onDown={() => moveSection("skills", 1)}
-          disableUp={sectionOrder[0] === "skills"}
-          disableDown={sectionOrder[sectionOrder.length - 1] === "skills"}
-        />
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-          {cv.skills.map((sg, i) => (
-            <Box key={i}>
-              <EditableText value={sg.category} onChange={(v) => update.skillCategory(i, v)}
-                variant="caption" sx={{ color: "text.disabled" }} fontWeight={600}
-                placeholder="Categoría..." />
-              <Stack direction="row" flexWrap="wrap" gap={0.5} mt={0.5}>
-                {(sg.items || []).map((skill, j) => (
-                  <Chip
-                    key={j}
-                    label={
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.25 }}>
-                        <EditableText
-                          value={skill}
-                          onChange={(v) => update.skillItem(i, j, v)}
-                          variant="caption"
-                          sx={{ fontSize: 11 }}
-                          placeholder="skill"
-                        />
-                        <DeleteOutline
-                          onClick={(e) => { e.stopPropagation(); update.removeSkillItem(i, j); }}
-                          sx={{ fontSize: 12, cursor: "pointer", opacity: 0.4, "&:hover": { opacity: 1, color: "error.main" } }}
-                        />
-                      </Box>
-                    }
-                    size="small"
-                    sx={{ height: 26, bgcolor: "rgba(108,99,255,0.1)", color: "primary.light", border: "1px solid rgba(108,99,255,0.2)", px: 0.5 }}
-                  />
-                ))}
-                <Tooltip title="Agregar skill">
-                  <Chip
-                    icon={<Add sx={{ fontSize: 13 }} />}
-                    label="Agregar"
-                    size="small"
-                    onClick={() => update.addSkillItem(i)}
-                    sx={{ height: 26, fontSize: 11, cursor: "pointer", bgcolor: "rgba(255,255,255,0.04)", color: "text.disabled", border: "1px dashed rgba(255,255,255,0.15)", "&:hover": { borderColor: "primary.main", color: "primary.light" } }}
-                  />
-                </Tooltip>
-              </Stack>
-            </Box>
-          ))}
-        </Box>
-      </Box>
+      <SkillsSection
+        skills={cv.skills}
+        update={update}
+        moveSection={moveSection}
+        sectionOrder={sectionOrder}
+      />
     ) : null,
 
     education: (cv.education || []).length > 0 ? (
@@ -685,6 +782,13 @@ export function CVPreview({ result, isGenerating }) {
       setEditedCV((p) => {
         const skills = [...p.skills];
         skills[i] = { ...skills[i], items: skills[i].items.filter((_, k) => k !== j) };
+        return { ...p, skills };
+      }), []),
+    moveSkill: useCallback((fromCatIdx, fromItemIdx, toCatIdx) =>
+      setEditedCV((p) => {
+        const skills = p.skills.map((sg) => ({ ...sg, items: [...sg.items] }));
+        const [skill] = skills[fromCatIdx].items.splice(fromItemIdx, 1);
+        skills[toCatIdx].items.push(skill);
         return { ...p, skills };
       }), []),
     eduField: useCallback((i, field, v) =>
