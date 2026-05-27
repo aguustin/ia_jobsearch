@@ -5,7 +5,7 @@ import {
 } from "@mui/material";
 import {
   ContentCopy, Download, PictureAsPdf, CheckCircle, Person,
-  Work, School, Code, Translate, KeyboardArrowUp,
+  Work, School, Code, Translate, GTranslate, KeyboardArrowUp,
   KeyboardArrowDown, Add, DeleteOutline, Refresh, MenuBook,
   AddAPhoto, DragIndicator,
 } from "@mui/icons-material";
@@ -281,6 +281,14 @@ function SkillsSection({ skills, update, moveSection, sectionOrder }) {
               </Stack>
             </DroppableCategory>
           ))}
+          <Button
+            size="small"
+            startIcon={<Add sx={{ fontSize: 13 }} />}
+            onClick={() => update.addSkillCategory()}
+            sx={{ fontSize: 11, color: "text.disabled", alignSelf: "flex-start", mt: 0.5, "&:hover": { color: "warning.light" } }}
+          >
+            Agregar categoría
+          </Button>
         </Box>
         <DragOverlay>
           {activeDragLabel && (
@@ -688,6 +696,7 @@ export function CVPreview({ result, isGenerating }) {
   const [sectionOrder, setSectionOrder] = useState(SECTION_KEYS);
   const [liveScore, setLiveScore] = useState(null);
   const [scoreLoading, setScoreLoading] = useState(false);
+  const [translating, setTranslating] = useState(false);
   const debounceRef = useRef(null);
 
   // Reset state when a new result arrives
@@ -784,6 +793,11 @@ export function CVPreview({ result, isGenerating }) {
         skills[i] = { ...skills[i], items: skills[i].items.filter((_, k) => k !== j) };
         return { ...p, skills };
       }), []),
+    addSkillCategory: useCallback(() =>
+      setEditedCV((p) => ({
+        ...p,
+        skills: [...(p.skills || []), { category: "", items: [] }],
+      })), []),
     moveSkill: useCallback((fromCatIdx, fromItemIdx, toCatIdx) =>
       setEditedCV((p) => {
         const skills = p.skills.map((sg) => ({ ...sg, items: [...sg.items] }));
@@ -852,6 +866,19 @@ export function CVPreview({ result, isGenerating }) {
     }
   }, [result]);
 
+  const handleTranslate = useCallback(async () => {
+    if (!editedCV) return;
+    setTranslating(true);
+    try {
+      const { translatedCV } = await cvApi.translate(editedCV);
+      setEditedCV(translatedCV);
+    } catch (err) {
+      console.error("[translate]", err);
+    } finally {
+      setTranslating(false);
+    }
+  }, [editedCV]);
+
   if (isGenerating) {
     return (
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -906,6 +933,24 @@ export function CVPreview({ result, isGenerating }) {
               </IconButton>
             </Tooltip>
           )}
+          <Tooltip title="Traducir CV al inglés (Ollama)">
+            <span>
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={handleTranslate}
+                disabled={translating}
+                startIcon={translating
+                  ? <CircularProgress size={13} color="inherit" />
+                  : <GTranslate sx={{ fontSize: 15 }} />
+                }
+                sx={{ fontSize: 12, minWidth: 0, px: 1.5, borderColor: "rgba(0,217,197,0.4)", color: "secondary.light",
+                  "&:hover": { borderColor: "secondary.main", bgcolor: "rgba(0,217,197,0.07)" } }}
+              >
+                {translating ? "Traduciendo..." : "EN"}
+              </Button>
+            </span>
+          </Tooltip>
           <CopyButton getText={() => formatCVText(editedCV)} />
           <DownloadTxtButton getText={() => formatCVText(editedCV)} filename={`${filename}.txt`} />
           <DownloadPdfButton getCV={() => editedCV} filename={`${filename}.pdf`} getPhoto={() => photo} />

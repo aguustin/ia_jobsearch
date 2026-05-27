@@ -108,7 +108,16 @@ export function Profile() {
                 <TextField label="Título profesional" value={form.title} onChange={(e) => set("title", e.target.value)} fullWidth />
                 <TextField label="Email" value={form.email} onChange={(e) => set("email", e.target.value)} fullWidth />
                 <TextField label="Ubicación" value={form.location} onChange={(e) => set("location", e.target.value)} fullWidth placeholder="Ej: Buenos Aires, Argentina" />
-                <TextField label="Resumen profesional" value={form.summary} onChange={(e) => set("summary", e.target.value)} fullWidth multiline rows={3} />
+                <Box>
+                  <TextField
+                    label="Resumen profesional"
+                    value={form.summary}
+                    onChange={(e) => set("summary", e.target.value)}
+                    fullWidth multiline rows={6}
+                    placeholder="Escribí tu resumen profesional aquí. Se usará como base en todos los CVs generados..."
+                    helperText="Este resumen se usa en el generador de CVs. Ollama puede reescribirlo según el puesto, pero este texto es el punto de partida."
+                  />
+                </Box>
               </Stack>
             </CardContent>
           </Card>

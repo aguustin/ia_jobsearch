@@ -191,9 +191,71 @@ Devuelve SOLO JSON válido:
     };
   }
 
+  // ─── CV Translation ──────────────────────────────────────────────────────────
+
+  async translateCV(cv) {
+    // Only extract translatable text fields — tech terms, dates, URLs and proper
+    // nouns (company/institution names) stay untouched.
+    const payload = {
+      summary:            cv.summary || "",
+      expRoles:           (cv.experience    || []).map((e) => e.role        || ""),
+      expAchievements:    (cv.experience    || []).map((e) => e.achievements || []),
+      skillCategories:    (cv.skills        || []).map((s) => s.category    || ""),
+      eduDegrees:         (cv.education     || []).map((e) => e.degree      || ""),
+      langNames:          (cv.languages     || []).map((l) => l.name        || ""),
+      langLevels:         (cv.languages     || []).map((l) => l.level       || ""),
+      certNames:          (cv.certifications|| []).map((c) => c.name        || ""),
+    };
+
+    const prompt = `Translate the following CV fields from Spanish to English.
+
+RULES:
+- DO translate: summary, job role titles, achievement bullet points, skill category names, education degree names, language names, proficiency levels, certification names.
+- DO NOT translate: technology names (React, Node.js, Docker, MongoDB, JWT…), company names, university names, proper nouns, date strings, URLs, acronyms.
+- Return ONLY a valid JSON object with the EXACT same structure and array lengths as the input. No extra keys, no missing keys.
+
+INPUT:
+${JSON.stringify(payload)}`;
+
+    let result = {};
+    try {
+      result = await ollamaService.generateJSON(prompt, { maxTokens: 3500 });
+    } catch (err) {
+      throw new Error("La traducción falló: " + err.message);
+    }
+
+    // Merge translations back preserving all non-translatable fields
+    return {
+      ...cv,
+      summary: result.summary || cv.summary,
+      experience: (cv.experience || []).map((e, i) => ({
+        ...e,
+        role:         result.expRoles?.[i]        || e.role,
+        achievements: result.expAchievements?.[i] || e.achievements,
+      })),
+      skills: (cv.skills || []).map((s, i) => ({
+        ...s,
+        category: result.skillCategories?.[i] || s.category,
+      })),
+      education: (cv.education || []).map((e, i) => ({
+        ...e,
+        degree: result.eduDegrees?.[i] || e.degree,
+      })),
+      languages: (cv.languages || []).map((l, i) => ({
+        ...l,
+        name:  result.langNames?.[i]  || l.name,
+        level: result.langLevels?.[i] || l.level,
+      })),
+      certifications: (cv.certifications || []).map((c, i) => ({
+        ...c,
+        name: result.certNames?.[i] || c.name,
+      })),
+    };
+  }
+
   // ─── CV Optimization ─────────────────────────────────────────────────────────
 
-  async optimizeCV(rawCVText, parsedCV, jobDescription, jdAnalysis) {
+  async optimizeCV(rawCVText, parsedCV, jobDescription, jdAnalysis, profileSummary = "") {
     const keywordsStr = (jdAnalysis.keywords || []).slice(0, 20).join(", ");
     const requiredStr = (jdAnalysis.requiredSkills || []).slice(0, 12).join(", ");
 
@@ -252,9 +314,9 @@ Devuelve SOLO un JSON válido con esta estructura:
 
     try {
       const result = await ollamaService.generateJSON(prompt, { maxTokens: 3000 });
-      return this._normalizeOptimizedCV(result, parsedCV, rawCVText);
+      return this._normalizeOptimizedCV(result, parsedCV, rawCVText, profileSummary);
     } catch {
-      return this._normalizeOptimizedCV({}, parsedCV, rawCVText);
+      return this._normalizeOptimizedCV({}, parsedCV, rawCVText, profileSummary);
     }
   }
 
@@ -294,7 +356,7 @@ Devuelve SOLO un JSON válido con esta estructura:
     return [...skillMap.values()];
   }
 
-  _normalizeOptimizedCV(raw, original, rawText = "") {
+  _normalizeOptimizedCV(raw, original, rawText = "", profileSummary = "") {
     const hasSkills = (arr) => Array.isArray(arr) && arr.some((sg) => sg.items?.length > 0);
     const hasExp    = (arr) => Array.isArray(arr) && arr.length > 0;
 
@@ -345,7 +407,7 @@ Devuelve SOLO un JSON válido con esta estructura:
 
     return {
       personalInfo,
-      summary: raw.summary || original.summary || DEFAULT_SUMMARY,
+      summary: raw.summary || profileSummary || DEFAULT_SUMMARY,
       experience,
       skills,
       education: hasExp(raw.education) ? raw.education : (original.education || []),

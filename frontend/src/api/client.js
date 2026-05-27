@@ -58,4 +58,6 @@ export const cvApi = {
     api.post("/cv/compare-ats", { cvId1, cvId2, jobDescription }, { timeout: 300000 }).then((r) => r.data),
   scoreLive: (parsedCV, jdAnalysis, rawText = "") =>
     api.post("/cv/score-live", { parsedCV, jdAnalysis, rawText }, { timeout: 15000 }).then((r) => r.data),
+  translate: (cv) =>
+    api.post("/cv/translate", { cv }, { timeout: 120000 }).then((r) => r.data),
 };

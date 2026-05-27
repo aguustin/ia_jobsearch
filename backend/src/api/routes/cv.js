@@ -1,6 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { CV } from "../../models/CV.js";
+import { Profile } from "../../models/Profile.js";
 import { cvParserService } from "../../services/CVParserService.js";
 import { atsOptimizerService } from "../../services/ATSOptimizerService.js";
 
@@ -85,8 +86,10 @@ router.post("/generate-ats", async (req, res) => {
       return res.status(400).json({ error: "La descripción laboral debe tener al menos 50 caracteres" });
     }
 
-    const cv = await CV.findById(cvId);
+    const [cv, profile] = await Promise.all([CV.findById(cvId), Profile.findOne()]);
     if (!cv) return res.status(404).json({ error: "CV no encontrado" });
+
+    const profileSummary = profile?.summary?.trim() || "";
 
     // Step 1: extract keywords and requirements from JD
     const jdAnalysis = await atsOptimizerService.analyzeJobDescription(jobDescription);
@@ -95,7 +98,7 @@ router.post("/generate-ats", async (req, res) => {
     const initialScore = atsOptimizerService.calculateATSScore(cv.parsed, jdAnalysis, cv.rawText);
 
     // Step 3: optimize CV with AI
-    const optimizedCV = await atsOptimizerService.optimizeCV(cv.rawText, cv.parsed, jobDescription, jdAnalysis);
+    const optimizedCV = await atsOptimizerService.optimizeCV(cv.rawText, cv.parsed, jobDescription, jdAnalysis, profileSummary);
 
     // Step 5: render text version and apply keyword replacements
     const rawText = atsOptimizerService.formatOptimizedCVText(optimizedCV);
@@ -121,6 +124,19 @@ router.post("/generate-ats", async (req, res) => {
     res.json({ initialScore, finalScore, jdAnalysis, optimizedCV: optimizedCVWithKeywords, optimizedText: finalOptimizedText });
   } catch (err) {
     console.error("[CV generate-ats]", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/cv/translate — translate CV fields to English using Ollama
+router.post("/translate", async (req, res) => {
+  try {
+    const { cv } = req.body;
+    if (!cv) return res.status(400).json({ error: "Se requiere el objeto cv" });
+    const translatedCV = await atsOptimizerService.translateCV(cv);
+    res.json({ translatedCV });
+  } catch (err) {
+    console.error("[CV translate]", err);
     res.status(500).json({ error: err.message });
   }
 });
