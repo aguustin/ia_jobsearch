@@ -2,12 +2,13 @@ import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import {
   Box, Typography, Button, Tabs, Tab, Divider,
   Chip, Stack, IconButton, Tooltip, Skeleton, TextField, CircularProgress,
+  Popover, Badge,
 } from "@mui/material";
 import {
   ContentCopy, Download, PictureAsPdf, CheckCircle, Person,
   Work, School, Code, Translate, GTranslate, KeyboardArrowUp,
   KeyboardArrowDown, Add, DeleteOutline, Refresh, MenuBook,
-  AddAPhoto, DragIndicator,
+  AddAPhoto, DragIndicator, SaveAlt, History, InfoOutlined,
 } from "@mui/icons-material";
 import { DndContext, DragOverlay, useDraggable, useDroppable, pointerWithin } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
@@ -281,6 +282,14 @@ function SkillsSection({ skills, update, moveSection, sectionOrder }) {
               </Stack>
             </DroppableCategory>
           ))}
+          {skills.some((sg) => /stack\s+adicional/i.test(sg.category) && (sg.items || []).length > 0) && (
+            <Box sx={{ display: "flex", gap: 0.75, p: 1, bgcolor: "rgba(255,183,77,0.05)", borderRadius: 1, border: "1px solid rgba(255,183,77,0.12)" }}>
+              <InfoOutlined sx={{ fontSize: 13, color: "warning.main", mt: 0.15, flexShrink: 0 }} />
+              <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
+                Las keywords en <Box component="span" sx={{ color: "warning.light", fontWeight: 600 }}>Stack adicional</Box> tienen menor visibilidad ATS. Integralas en los logros de experiencia para mayor impacto.
+              </Typography>
+            </Box>
+          )}
           <Button
             size="small"
             startIcon={<Add sx={{ fontSize: 13 }} />}
@@ -697,6 +706,11 @@ export function CVPreview({ result, isGenerating }) {
   const [liveScore, setLiveScore] = useState(null);
   const [scoreLoading, setScoreLoading] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const [versions, setVersions] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("cv_versions") || "[]"); } catch { return []; }
+  });
+  const [versionsAnchorEl, setVersionsAnchorEl] = useState(null);
+  const [savedNotification, setSavedNotification] = useState(false);
   const debounceRef = useRef(null);
 
   // Reset state when a new result arrives
@@ -879,6 +893,30 @@ export function CVPreview({ result, isGenerating }) {
     }
   }, [editedCV]);
 
+  const saveVersion = useCallback(() => {
+    if (!editedCV) return;
+    const now = new Date();
+    const name = `${now.toLocaleDateString("es-AR")} ${now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`;
+    const version = { id: Date.now(), name, cv: editedCV, sectionOrder };
+    const updated = [version, ...versions].slice(0, 10);
+    localStorage.setItem("cv_versions", JSON.stringify(updated));
+    setVersions(updated);
+    setSavedNotification(true);
+    setTimeout(() => setSavedNotification(false), 2500);
+  }, [editedCV, sectionOrder, versions]);
+
+  const loadVersion = useCallback((version) => {
+    setEditedCV(JSON.parse(JSON.stringify(version.cv)));
+    if (version.sectionOrder) setSectionOrder(version.sectionOrder);
+    setVersionsAnchorEl(null);
+  }, []);
+
+  const deleteVersion = useCallback((id) => {
+    const updated = versions.filter((v) => v.id !== id);
+    localStorage.setItem("cv_versions", JSON.stringify(updated));
+    setVersions(updated);
+  }, [versions]);
+
   if (isGenerating) {
     return (
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -896,14 +934,24 @@ export function CVPreview({ result, isGenerating }) {
   return (
     <Box>
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2, flexWrap: "wrap", gap: 1 }}>
-        <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
-          sx={{ minHeight: 36, "& .MuiTab-root": { minHeight: 36, py: 0, fontSize: 13 } }}
-        >
-          <Tab label="Vista estructurada" />
-          <Tab label="Texto plano" />
-        </Tabs>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+          <Tabs
+            value={tab}
+            onChange={(_, v) => setTab(v)}
+            sx={{ minHeight: 36, "& .MuiTab-root": { minHeight: 36, py: 0, fontSize: 13 } }}
+          >
+            <Tab label="Vista estructurada" />
+            <Tab label="Texto plano" />
+          </Tabs>
+          {result.jdAnalysis?.role && (
+            <Chip
+              size="small"
+              icon={<Work sx={{ fontSize: 11 }} />}
+              label={result.jdAnalysis.role}
+              sx={{ fontSize: 10, height: 22, bgcolor: "rgba(108,99,255,0.08)", color: "primary.light", border: "1px solid rgba(108,99,255,0.14)", maxWidth: 240 }}
+            />
+          )}
+        </Box>
         <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
           {/* Live ATS score badge */}
           {liveScore && (
@@ -933,6 +981,53 @@ export function CVPreview({ result, isGenerating }) {
               </IconButton>
             </Tooltip>
           )}
+
+          {/* Guardar versión */}
+          <Tooltip title={savedNotification ? "¡Versión guardada!" : "Guardar versión del CV"}>
+            <IconButton size="small" onClick={saveVersion}
+              sx={{ color: savedNotification ? "success.main" : "text.secondary" }}>
+              {savedNotification ? <CheckCircle fontSize="small" /> : <SaveAlt fontSize="small" />}
+            </IconButton>
+          </Tooltip>
+
+          {/* Historial de versiones */}
+          {versions.length > 0 && (
+            <Tooltip title={`Historial (${versions.length} versiones guardadas)`}>
+              <IconButton size="small" onClick={(e) => setVersionsAnchorEl(e.currentTarget)}
+                sx={{ color: "text.secondary" }}>
+                <Badge badgeContent={versions.length} color="primary"
+                  sx={{ "& .MuiBadge-badge": { fontSize: 9, minWidth: 14, height: 14, p: 0 } }}>
+                  <History fontSize="small" />
+                </Badge>
+              </IconButton>
+            </Tooltip>
+          )}
+          <Popover
+            open={Boolean(versionsAnchorEl)}
+            anchorEl={versionsAnchorEl}
+            onClose={() => setVersionsAnchorEl(null)}
+            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+            transformOrigin={{ vertical: "top", horizontal: "right" }}
+            PaperProps={{ sx: { bgcolor: "background.paper", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 2, p: 1, minWidth: 230, maxHeight: 300, overflowY: "auto" } }}
+          >
+            <Typography variant="caption" color="text.disabled" sx={{ px: 1, py: 0.5, display: "block" }}>
+              Versiones guardadas
+            </Typography>
+            {versions.map((v) => (
+              <Box key={v.id} sx={{ display: "flex", alignItems: "center", borderRadius: 1, "&:hover": { bgcolor: "rgba(255,255,255,0.04)" } }}>
+                <Box sx={{ flex: 1, cursor: "pointer", px: 1, py: 0.75 }} onClick={() => loadVersion(v)}>
+                  <Typography variant="caption">{v.name}</Typography>
+                </Box>
+                <Tooltip title="Eliminar versión">
+                  <IconButton size="small" onClick={() => deleteVersion(v.id)}
+                    sx={{ color: "text.disabled", "&:hover": { color: "error.light" }, width: 22, height: 22, mr: 0.5 }}>
+                    <DeleteOutline sx={{ fontSize: 13 }} />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            ))}
+          </Popover>
+
           <Tooltip title="Traducir CV al inglés (Ollama)">
             <span>
               <Button

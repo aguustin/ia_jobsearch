@@ -135,6 +135,44 @@ export class ATSOptimizerService {
       .trim();
   }
 
+  // Sorts an array of strings so items that match more JD keywords come first.
+  _sortByRelevance(items, jdKeywords) {
+    if (!jdKeywords?.length || !items?.length) return items;
+    const kwNorms = jdKeywords.map((k) => this._normalize(String(k)));
+    const score = (item) => {
+      const norm = this._normalize(String(item));
+      const words = norm.split(/\s+/);
+      let s = 0;
+      for (const kw of kwNorms) {
+        if (norm === kw) { s += 3; continue; }
+        if (norm.includes(kw) || kw.includes(norm)) { s += 2; continue; }
+        if (words.some((w) => w.length >= 3 && (w === kw || w.startsWith(kw) || kw.startsWith(w)))) s += 1;
+      }
+      return s;
+    };
+    return [...items].sort((a, b) => score(b) - score(a));
+  }
+
+  // Extracts the job role/title from a job description using regex patterns (no AI needed).
+  _extractRoleFromJD(jd) {
+    if (!jd) return "";
+    const patterns = [
+      /buscamos?\s+(?:un|una)\s+([A-Za-záéíóúüñÁÉÍÓÚÜÑ][A-Za-záéíóúüñÁÉÍÓÚÜÑ\s/+\-.]{3,50}?)(?:\s+para|\s+con|\s+que|[,.]|$)/i,
+      /(?:posici[oó]n|rol|cargo|puesto)[:\s]+([A-Za-záéíóúüñÁÉÍÓÚÜÑ][A-Za-záéíóúüñÁÉÍÓÚÜÑ\s/+\-.]{3,50}?)(?:\n|[,.]|$)/i,
+      /^##?\s+([A-Z][^\n]{4,55})$/m,
+      /we(?:'re|re|\s+are)\s+looking\s+for\s+(?:a|an)\s+([A-Za-z][A-Za-z\s/+\-.]{3,50}?)(?:\s+to|\s+who|\s+with|[,.]|$)/i,
+      /(?:position|role|job\s*title)[:\s]+([A-Za-z][A-Za-z\s/+\-.]{3,50}?)(?:\n|[,.]|$)/i,
+    ];
+    for (const pat of patterns) {
+      const m = jd.match(pat);
+      if (m?.[1]) {
+        const role = m[1].trim().replace(/\s+/g, " ");
+        if (role.length >= 4 && role.length <= 60) return role;
+      }
+    }
+    return "";
+  }
+
   // ─── JD Analysis ────────────────────────────────────────────────────────────
 
   async analyzeJobDescription(jobDescription) {
@@ -185,7 +223,7 @@ Devuelve SOLO JSON válido:
       keywords: mergedKeywords,
       experienceLevel: ollamaResult.experienceLevel || "unknown",
       industry: ollamaResult.industry || "",
-      role: ollamaResult.role || "",
+      role: ollamaResult.role || this._extractRoleFromJD(jobDescription) || "",
       softSkills: ollamaResult.softSkills || [],
       _regexKeywords: regexKeywords,
     };
@@ -314,9 +352,9 @@ Devuelve SOLO un JSON válido con esta estructura:
 
     try {
       const result = await ollamaService.generateJSON(prompt, { maxTokens: 3000 });
-      return this._normalizeOptimizedCV(result, parsedCV, rawCVText, profileSummary);
+      return this._normalizeOptimizedCV(result, parsedCV, rawCVText, profileSummary, jdAnalysis);
     } catch {
-      return this._normalizeOptimizedCV({}, parsedCV, rawCVText, profileSummary);
+      return this._normalizeOptimizedCV({}, parsedCV, rawCVText, profileSummary, jdAnalysis);
     }
   }
 
@@ -356,7 +394,7 @@ Devuelve SOLO un JSON válido con esta estructura:
     return [...skillMap.values()];
   }
 
-  _normalizeOptimizedCV(raw, original, rawText = "", profileSummary = "") {
+  _normalizeOptimizedCV(raw, original, rawText = "", profileSummary = "", jdAnalysis = null) {
     const hasSkills = (arr) => Array.isArray(arr) && arr.some((sg) => sg.items?.length > 0);
     const hasExp    = (arr) => Array.isArray(arr) && arr.length > 0;
 
@@ -405,11 +443,25 @@ Devuelve SOLO un JSON válido con esta estructura:
       website:   pick(piBase.website,   original.personalInfo?.website),
     };
 
+    const jdKeywords = jdAnalysis?.keywords || [];
+
+    // Sort achievement bullets within each experience entry so the most JD-relevant ones appear first
+    const experienceSorted = experience.map((entry) => ({
+      ...entry,
+      achievements: this._sortByRelevance(entry.achievements || [], jdKeywords),
+    }));
+
+    // Sort skill items within each category so JD-matching skills appear first
+    const skillsSorted = skills.map((sg) => ({
+      ...sg,
+      items: this._sortByRelevance(sg.items || [], jdKeywords),
+    }));
+
     return {
       personalInfo,
       summary: raw.summary || profileSummary || DEFAULT_SUMMARY,
-      experience,
-      skills,
+      experience: experienceSorted,
+      skills: skillsSorted,
       education: hasExp(raw.education) ? raw.education : (original.education || []),
       languages: Array.isArray(raw.languages) ? raw.languages : (original.languages || []),
       certifications: DEFAULT_CERTIFICATIONS,
