@@ -357,6 +357,14 @@ export function generateCVPDF(optimizedCV, filename = "CV_ATS_optimizado.pdf", p
       const labelW = doc.getTextWidth(`${l.name}: `);
       doc.setFont("helvetica", "normal");
       doc.text(l.level || "", MARGIN + labelW, y);
+      if (l.certificateUrl) {
+        const levelW = doc.getTextWidth((l.level || "") + "  ");
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(...C_PRIMARY);
+        doc.textWithLink("ver certificado ↗", MARGIN + labelW + levelW, y, { url: l.certificateUrl });
+        doc.setTextColor(...C_TEXT);
+      }
       y += LINE_GAP;
     });
     y += SECTION_GAP - 3;
@@ -388,10 +396,26 @@ export function generateCVPDF(optimizedCV, filename = "CV_ATS_optimizado.pdf", p
         doc.setFontSize(8.5);
         doc.setTextColor(...C_SECONDARY);
         doc.text(c.issuer, MARGIN, y);
+        if (c.url) {
+          const issuerW = doc.getTextWidth(c.issuer + "  ");
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(...C_PRIMARY);
+          doc.textWithLink("ver certificado ↗", MARGIN + issuerW, y, { url: c.url });
+          doc.setTextColor(...C_TEXT);
+        }
         y += LINE_GAP;
       }
     });
   }
 
-  doc.save(filename);
+  const blob = doc.output("blob");
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }

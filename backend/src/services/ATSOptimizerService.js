@@ -1,5 +1,8 @@
 import { ollamaService } from "./OllamaService.js";
-import { DEFAULT_PERSONAL_INFO, DEFAULT_CERTIFICATIONS, DEFAULT_PROJECTS, DEFAULT_SUMMARY, DEFAULT_SKILL_CATEGORIES, DEFAULT_REGULAR_EXPERIENCE } from "../config/userDefaults.js";
+import Anthropic from "@anthropic-ai/sdk";
+
+const anthropic = new Anthropic();
+import { DEFAULT_PERSONAL_INFO, DEFAULT_CERTIFICATIONS, DEFAULT_PROJECTS, DEFAULT_SUMMARY, DEFAULT_SKILL_CATEGORIES, DEFAULT_REGULAR_EXPERIENCE, DEFAULT_LANGUAGES } from "../config/userDefaults.js";
 
 // ─── Tech keyword dictionary (covers multilingual JDs with EN tech terms) ───
 const TECH_TERMS = [
@@ -8,44 +11,72 @@ const TECH_TERMS = [
   "php", "kotlin", "swift", "dart", "scala", "elixir", "perl", "lua",
   "bash", "powershell", "shell", "sql", "plsql", "tsql", "cobol", "groovy",
   "c++", "c#", "objective-c",
-  // Frontend
+  // Frontend — frameworks & libraries
   "react", "reactjs", "vue", "vuejs", "angular", "angularjs", "svelte",
-  "nextjs", "nuxtjs", "gatsby", "jquery", "bootstrap", "tailwind",
-  "webpack", "vite", "babel", "sass", "less", "css", "html",
+  "nextjs", "nuxtjs", "gatsby", "remix", "astro", "jquery", "bootstrap", "tailwind",
+  "webpack", "vite", "babel", "rollup", "parcel", "esbuild",
+  // Frontend — styling
+  "sass", "scss", "less", "css", "css3", "html", "html5",
+  "styled components", "emotion", "chakra", "shadcn",
+  // Frontend — state management
+  "redux", "zustand", "mobx", "rxjs", "recoil", "jotai", "react query", "tanstack",
+  // Frontend — tooling & testing
+  "storybook", "jest", "vitest", "cypress", "playwright", "testing library",
+  "mocha", "chai", "jasmine", "selenium", "puppeteer",
   // Backend
   "nodejs", "express", "expressjs", "fastapi", "django", "flask", "rails",
   "spring", "springboot", "laravel", "symfony", "nestjs", "koa", "fastify",
-  "gin", "fiber", "actix", "asp.net", "aspnet",
+  "hono", "gin", "fiber", "actix", "asp.net", "aspnet", "bun", "deno",
+  // Auth
+  "oauth", "oauth2", "passport", "auth0", "keycloak", "jwt", "saml", "openid",
+  // ORMs & database clients
+  "prisma", "sequelize", "mongoose", "typeorm", "drizzle", "sqlalchemy",
   // Mobile
   "android", "ios", "flutter", "xamarin", "ionic", "capacitor",
-  "react native", "reactnative", "cordova", "phonegap", "android studio",
+  "react native", "reactnative", "cordova", "phonegap", "android studio", "expo",
   // Cloud
   "aws", "gcp", "azure", "heroku", "vercel", "netlify", "cloudflare",
-  "lambda", "ec2", "s3", "gke", "aks", "ecs", "fargate",
+  "google cloud", "google cloud platform",
+  "lambda", "ec2", "s3", "rds", "cloudfront", "route53",
+  "gke", "aks", "ecs", "fargate", "cloud run", "cloud functions",
   // DevOps / Infra
   "docker", "kubernetes", "k8s", "terraform", "ansible", "puppet", "chef",
   "jenkins", "gitlab", "github", "bitbucket", "circleci", "travis",
-  "github actions", "helm", "grafana", "prometheus", "nginx", "apache",
-  "linux", "ubuntu", "debian", "centos", "rhel",
+  "github actions", "gitlab ci", "helm", "argocd", "grafana", "prometheus",
+  "nginx", "apache", "linux", "ubuntu", "debian", "centos", "rhel",
+  "vault", "pulumi",
   // Databases
   "postgresql", "postgres", "mysql", "mariadb", "mongodb", "redis",
   "elasticsearch", "cassandra", "dynamodb", "sqlite", "oracle", "mssql",
-  "neo4j", "firebase", "supabase", "clickhouse", "influxdb",
+  "neo4j", "firebase", "supabase", "clickhouse", "influxdb", "minio",
+  // Message brokers
+  "rabbitmq", "kafka", "celery", "bull", "sqs", "pubsub",
   // Architecture / Concepts
   "microservices", "serverless", "restful", "rest api", "graphql", "grpc",
   "websocket", "event-driven", "clean architecture", "hexagonal", "solid",
-  "ddd", "tdd", "bdd",
+  "ddd", "tdd", "bdd", "cicd",
   // Methodologies
-  "agile", "scrum", "kanban", "lean", "devops", "cicd", "ci/cd",
+  "agile", "scrum", "kanban", "lean", "devops",
   "pair programming", "code review", "test driven",
   // Data / AI
   "machine learning", "deep learning", "tensorflow", "pytorch", "keras",
-  "scikit-learn", "pandas", "numpy", "spark", "kafka", "airflow", "mlops",
+  "scikit-learn", "pandas", "numpy", "spark", "airflow", "mlops",
 ];
 
 // Multi-word terms need exact substring check
 const MULTIWORD_TERMS = TECH_TERMS.filter((t) => t.includes(" "));
 const SINGLEWORD_TERMS = TECH_TERMS.filter((t) => !t.includes(" "));
+
+// Whitelist of all-caps sequences that are genuine tech skills.
+// Anything NOT here (SEO, PPC, UI, UX, CI, CD, MERN, LSA, etc.) is excluded.
+const TECH_CAPS = new Set([
+  "JWT", "SQL", "SDK", "CLI", "SSR", "SSG", "CSR", "CDN", "SPA", "MVC",
+  "OOP", "ORM", "DDD", "TDD", "BDD", "CRUD", "JSON", "XML", "YAML", "DOM",
+  "HTTP", "HTTPS", "GRPC", "PWA", "SSH", "FTP", "SFTP",
+  "VPN", "VPC", "IAM", "S3", "EC2", "RDS", "SNS", "SQS", "ECS", "EKS",
+  "GKE", "AKS", "RBAC", "CORS", "XSS", "CSRF", "WASM", "JVM",
+  "SAML", "OIDC", "PHP", "CSS", "HTML", "SASS", "SCSS", "LESS",
+]);
 
 // ─── Alias groups — each array = equivalent terms (all pre-normalized) ────────
 const ALIAS_GROUPS = [
@@ -68,15 +99,21 @@ const ALIAS_GROUPS = [
   ["c#", "csharp", "dotnet", "net"],
   ["machine learning", "ml"],
   ["artificial intelligence", "ai"],
-  ["cicd", "ci cd", "continuous integration", "continuous delivery"],
+  ["cicd", "ci cd", "continuous integration", "continuous delivery", "continuous deployment"],
   ["rest api", "restful", "rest"],
   ["graphql", "gql"],
   ["amazon web services", "aws"],
-  ["google cloud platform", "gcp"],
+  ["google cloud", "google cloud platform", "gcp"],
   ["microsoft azure", "azure"],
   ["github actions", "gha"],
   ["react native", "reactnative"],
   ["android studio", "android"],
+  ["oauth", "oauth2", "openid connect", "oidc"],
+  ["redux", "rtk", "react redux", "redux toolkit"],
+  ["css3", "css"],
+  ["html5", "html"],
+  ["scss", "sass"],
+  ["testing library", "react testing library", "rtl"],
 ];
 
 // Build lookup: normalized term → array of normalized aliases
@@ -94,7 +131,7 @@ export class ATSOptimizerService {
     const found = new Set();
     const lower = this._normalize(text);
 
-    // 1. Dictionary single-word terms
+    // 1. Dictionary single-word terms (word-boundary match on normalized text)
     for (const term of SINGLEWORD_TERMS) {
       const pattern = new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
       if (pattern.test(lower)) found.add(term);
@@ -105,21 +142,22 @@ export class ATSOptimizerService {
       if (lower.includes(term)) found.add(term);
     }
 
-    // 3. All-caps abbreviations not in dict: API, REST, HTTP, SDK, CLI…
+    // 3. Known tech acronyms only — whitelist prevents SEO, PPC, UI, UX, CI, CD, etc.
     const capsMatches = text.match(/\b[A-Z]{2,10}\b/g) || [];
     capsMatches.forEach((m) => {
-      if (!["THE", "AND", "FOR", "FROM", "WITH", "ARE", "YOU", "NOT", "ALL", "THIS", "THAT"].includes(m)) {
-        found.add(m.toLowerCase());
-      }
+      if (TECH_CAPS.has(m)) found.add(m.toLowerCase());
     });
 
-    // 4. CamelCase tech terms: VueJS, NodeJS, GoLang, TypeScript, ReactNative
+    // 4. CamelCase tech terms: VueJS, NodeJS, TypeScript, ReactNative, NestJS…
     const camelMatches = text.match(/\b[A-Z][a-z]+(?:[A-Z][a-z]*)+\b/g) || [];
     camelMatches.forEach((m) => found.add(this._normalize(m)));
 
-    // 5. Dotted framework names: Node.js, Vue.js, React.js
+    // 5. Dotted framework names: Node.js, Vue.js, React.js, Next.js…
     const dottedMatches = text.match(/\b[A-Za-z]+\.[Jj][Ss]\b/g) || [];
     dottedMatches.forEach((m) => found.add(this._normalize(m)));
+
+    // 6. CI/CD — must detect before normalization strips the slash into "ci cd"
+    if (/\bCI[\s/\-]?CD\b/i.test(text)) found.add("cicd");
 
     return [...found].filter((k) => k.length > 1);
   }
@@ -196,35 +234,41 @@ Devuelve SOLO JSON válido:
   "softSkills": ["<habilidades blandas mencionadas>"]
 }`;
 
-    let ollamaResult = {};
+    let aiResult = {};
     try {
-      ollamaResult = await ollamaService.generateJSON(prompt);
+      const message = await anthropic.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 2048,
+        messages: [{ role: "user", content: prompt }],
+      });
+      const jsonMatch = message.content[0].text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) aiResult = JSON.parse(jsonMatch[0]);
     } catch {
-      // Ollama failed: regex extraction alone is enough
+      // Claude failed: regex extraction alone is enough
     }
 
-    // Merge Ollama output with regex extraction
+    // Merge AI output with regex extraction
     const mergedKeywords = [...new Set([
-      ...(ollamaResult.keywords || []).map((k) => this._normalize(k)),
-      ...(ollamaResult.requiredSkills || []).map((k) => this._normalize(k)),
-      ...(ollamaResult.niceToHaveSkills || []).map((k) => this._normalize(k)),
+      ...(aiResult.keywords || []).map((k) => this._normalize(k)),
+      ...(aiResult.requiredSkills || []).map((k) => this._normalize(k)),
+      ...(aiResult.niceToHaveSkills || []).map((k) => this._normalize(k)),
       ...regexKeywords,
     ])].filter(Boolean);
 
     const mergedRequired = [...new Set([
-      ...(ollamaResult.requiredSkills || []).map((k) => this._normalize(k)),
-      // If Ollama returned nothing, promote regex keywords as required
-      ...(!(ollamaResult.requiredSkills?.length) ? regexKeywords.slice(0, 8) : []),
+      ...(aiResult.requiredSkills || []).map((k) => this._normalize(k)),
+      // If AI returned nothing, promote regex keywords as required
+      ...(!(aiResult.requiredSkills?.length) ? regexKeywords.slice(0, 8) : []),
     ])].filter(Boolean);
 
     return {
       requiredSkills: mergedRequired,
-      niceToHaveSkills: (ollamaResult.niceToHaveSkills || []).map((k) => this._normalize(k)),
+      niceToHaveSkills: (aiResult.niceToHaveSkills || []).map((k) => this._normalize(k)),
       keywords: mergedKeywords,
-      experienceLevel: ollamaResult.experienceLevel || "unknown",
-      industry: ollamaResult.industry || "",
-      role: ollamaResult.role || this._extractRoleFromJD(jobDescription) || "",
-      softSkills: ollamaResult.softSkills || [],
+      experienceLevel: aiResult.experienceLevel || "unknown",
+      industry: aiResult.industry || "",
+      role: aiResult.role || this._extractRoleFromJD(jobDescription) || "",
+      softSkills: aiResult.softSkills || [],
       _regexKeywords: regexKeywords,
     };
   }
@@ -232,61 +276,72 @@ Devuelve SOLO JSON válido:
   // ─── CV Translation ──────────────────────────────────────────────────────────
 
   async translateCV(cv) {
-    // Only extract translatable text fields — tech terms, dates, URLs and proper
-    // nouns (company/institution names) stay untouched.
-    const payload = {
-      summary:            cv.summary || "",
-      expRoles:           (cv.experience    || []).map((e) => e.role        || ""),
-      expAchievements:    (cv.experience    || []).map((e) => e.achievements || []),
-      skillCategories:    (cv.skills        || []).map((s) => s.category    || ""),
-      eduDegrees:         (cv.education     || []).map((e) => e.degree      || ""),
-      langNames:          (cv.languages     || []).map((l) => l.name        || ""),
-      langLevels:         (cv.languages     || []).map((l) => l.level       || ""),
-      certNames:          (cv.certifications|| []).map((c) => c.name        || ""),
-    };
-
-    const prompt = `Translate the following CV fields from Spanish to English.
-
-RULES:
+    const TRANSLATE_RULES = `RULES:
 - DO translate: summary, job role titles, achievement bullet points, skill category names, education degree names, language names, proficiency levels, certification names.
 - DO NOT translate: technology names (React, Node.js, Docker, MongoDB, JWT…), company names, university names, proper nouns, date strings, URLs, acronyms.
-- Return ONLY a valid JSON object with the EXACT same structure and array lengths as the input. No extra keys, no missing keys.
+- Return ONLY a valid JSON object with the EXACT same structure and array lengths as the input. No extra keys, no missing keys.`;
 
-INPUT:
-${JSON.stringify(payload)}`;
+    const makePrompt = (payload) =>
+      `Translate the following CV fields from Spanish to English.\n\n${TRANSLATE_RULES}\n\nINPUT:\n${JSON.stringify(payload)}`;
 
-    let result = {};
+    // Call 1: all text fields except achievements (small payload)
+    const textPayload = {
+      summary:         cv.summary || "",
+      expRoles:        (cv.experience    || []).map((e) => e.role     || ""),
+      skillCategories: (cv.skills        || []).map((s) => s.category || ""),
+      eduDegrees:      (cv.education     || []).map((e) => e.degree   || ""),
+      langNames:       (cv.languages     || []).map((l) => l.name     || ""),
+      langLevels:      (cv.languages     || []).map((l) => l.level    || ""),
+      certNames:       (cv.certifications|| []).map((c) => c.name     || ""),
+    };
+
+    let textResult = {};
     try {
-      result = await ollamaService.generateJSON(prompt, { maxTokens: 3500 });
+      textResult = await ollamaService.generateJSON(makePrompt(textPayload), { maxTokens: 2048, numCtx: 6144 });
     } catch (err) {
       throw new Error("La traducción falló: " + err.message);
     }
 
-    // Merge translations back preserving all non-translatable fields
+    // Call 2..N: one Ollama call per experience entry (achievements can be long)
+    const translatedAchievements = [];
+    for (const exp of (cv.experience || [])) {
+      const achs = exp.achievements || [];
+      if (!achs.length) { translatedAchievements.push([]); continue; }
+      try {
+        const achResult = await ollamaService.generateJSON(
+          makePrompt({ achievements: achs }),
+          { maxTokens: 2048, numCtx: 6144 }
+        );
+        translatedAchievements.push(Array.isArray(achResult.achievements) ? achResult.achievements : achs);
+      } catch {
+        translatedAchievements.push(achs);
+      }
+    }
+
     return {
       ...cv,
-      summary: result.summary || cv.summary,
+      summary: textResult.summary || cv.summary,
       experience: (cv.experience || []).map((e, i) => ({
         ...e,
-        role:         result.expRoles?.[i]        || e.role,
-        achievements: result.expAchievements?.[i] || e.achievements,
+        role:         textResult.expRoles?.[i]    || e.role,
+        achievements: translatedAchievements[i]   ?? e.achievements,
       })),
       skills: (cv.skills || []).map((s, i) => ({
         ...s,
-        category: result.skillCategories?.[i] || s.category,
+        category: textResult.skillCategories?.[i] || s.category,
       })),
       education: (cv.education || []).map((e, i) => ({
         ...e,
-        degree: result.eduDegrees?.[i] || e.degree,
+        degree: textResult.eduDegrees?.[i] || e.degree,
       })),
       languages: (cv.languages || []).map((l, i) => ({
         ...l,
-        name:  result.langNames?.[i]  || l.name,
-        level: result.langLevels?.[i] || l.level,
+        name:  textResult.langNames?.[i]  || l.name,
+        level: textResult.langLevels?.[i] || l.level,
       })),
       certifications: (cv.certifications || []).map((c, i) => ({
         ...c,
-        name: result.certNames?.[i] || c.name,
+        name: textResult.certNames?.[i] || c.name,
       })),
     };
   }
@@ -351,7 +406,13 @@ Devuelve SOLO un JSON válido con esta estructura:
 }`;
 
     try {
-      const result = await ollamaService.generateJSON(prompt, { maxTokens: 3000 });
+      const message = await anthropic.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 4096,
+        messages: [{ role: "user", content: prompt }],
+      });
+      const jsonMatch = message.content[0].text.match(/\{[\s\S]*\}/);
+      const result = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
       return this._normalizeOptimizedCV(result, parsedCV, rawCVText, profileSummary, jdAnalysis);
     } catch {
       return this._normalizeOptimizedCV({}, parsedCV, rawCVText, profileSummary, jdAnalysis);
@@ -398,14 +459,41 @@ Devuelve SOLO un JSON válido con esta estructura:
     const hasSkills = (arr) => Array.isArray(arr) && arr.some((sg) => sg.items?.length > 0);
     const hasExp    = (arr) => Array.isArray(arr) && arr.length > 0;
 
+    // Remove descriptive phrases from parsed skill items (e.g. "Control de versiones con Git").
+    // A real skill keyword has ≤ 4 words and ≤ 50 chars; longer strings are bullets, not skills.
+    const filterSkillItems = (groups) =>
+      groups.map((sg) => ({
+        ...sg,
+        items: (sg.items || []).filter(
+          (item) => typeof item === "string" && item.trim().length > 0
+            && item.split(/\s+/).length <= 4 && item.length <= 50
+        ),
+      }));
+
     const extractedSkills = this._extractSkillsFromText(rawText);
-    const skills = hasSkills(raw.skills)
-      ? raw.skills
+    const sourceSkills = hasSkills(raw.skills)
+      ? filterSkillItems(raw.skills)
       : hasSkills(original.skills)
-        ? original.skills
+        ? filterSkillItems(original.skills)
         : hasSkills(extractedSkills)
-          ? extractedSkills
-          : DEFAULT_SKILL_CATEGORIES;
+          ? filterSkillItems(extractedSkills)
+          : [];
+
+    // Always start from defaults so all categories are present, then merge AI items in
+    const skillMap = new Map(
+      DEFAULT_SKILL_CATEGORIES.map((sg) => [sg.category.toLowerCase(), { ...sg, items: [...sg.items] }])
+    );
+    for (const sg of sourceSkills) {
+      if (!sg.category) continue;
+      const key = sg.category.toLowerCase();
+      if (skillMap.has(key)) {
+        const existing = skillMap.get(key);
+        existing.items = [...new Set([...existing.items, ...sg.items])];
+      } else {
+        skillMap.set(key, sg);
+      }
+    }
+    const skills = [...skillMap.values()];
 
     // Strip any AI-generated projects section and always inject defaults
     const rawExp = hasExp(raw.experience) ? raw.experience : (original.experience || []);
@@ -433,7 +521,7 @@ Devuelve SOLO un JSON válido con esta estructura:
     const piBase = raw.personalInfo || original.personalInfo || {};
     const pick   = (a, b) => a?.trim() || b?.trim() || "";
     const personalInfo = {
-      name:     pick(piBase.name,     original.personalInfo?.name),
+      name:     pick(piBase.name,     original.personalInfo?.name) || DEFAULT_PERSONAL_INFO.name,
       email:    pick(piBase.email,    original.personalInfo?.email),
       phone:    pick(piBase.phone,    original.personalInfo?.phone),
       location: pick(piBase.location, original.personalInfo?.location) || DEFAULT_PERSONAL_INFO.location,
@@ -463,7 +551,19 @@ Devuelve SOLO un JSON válido con esta estructura:
       experience: experienceSorted,
       skills: skillsSorted,
       education: hasExp(raw.education) ? raw.education : (original.education || []),
-      languages: Array.isArray(raw.languages) ? raw.languages : (original.languages || []),
+      languages: (() => {
+        const base = Array.isArray(raw.languages) && raw.languages.length
+          ? raw.languages
+          : (original.languages?.length ? original.languages : DEFAULT_LANGUAGES);
+        // Normalize: some entries use 'language' field instead of 'name' (Profile schema)
+        const normalized = base.map((l) => l.name ? l : { ...l, name: l.language });
+        // Merge default certificateUrl for each entry that matches a default
+        return normalized.map((l) => {
+          if (l.certificateUrl) return l;
+          const def = DEFAULT_LANGUAGES.find((d) => d.name.toLowerCase() === (l.name || "").toLowerCase());
+          return def?.certificateUrl ? { ...l, certificateUrl: def.certificateUrl } : l;
+        });
+      })(),
       certifications: DEFAULT_CERTIFICATIONS,
     };
   }
@@ -661,48 +761,75 @@ Devuelve SOLO un JSON válido con esta estructura:
 
     const skills = (optimizedCV.skills || []).map((sg) => ({ ...sg, items: [...sg.items] }));
 
-    // Build a cross-category dedup set so we don't add keywords already present in any category
+    // Build dedup set using consistent normalization + expand with aliases so
+    // "github" already present blocks "github actions" from being injected again.
     const existingNorm = new Set(
-      skills.flatMap((sg) => sg.items.map((item) => item.toLowerCase().replace(/[.\-_]/g, "")))
+      skills.flatMap((sg) =>
+        sg.items.flatMap((item) => {
+          const norm = this._normalize(item);
+          return [norm, ...(ALIAS_MAP.get(norm) || [])];
+        })
+      )
     );
 
-    // Signals for auto-categorization
-    const SIGNALS = [
-      { signals: ["frontend", "client", "ui", "web"],           keys: ["react", "vue", "angular", "html", "css", "javascript", "typescript", "svelte", "next", "nuxt", "bootstrap", "tailwind", "jquery", "webpack", "vite"] },
-      { signals: ["backend", "server", "api"],                  keys: ["node", "express", "python", "django", "flask", "java", "spring", "php", "ruby", "rails", "golang", "go", "nestjs", "fastapi", "laravel", "aspnet", "dotnet"] },
-      { signals: ["base", "dato", "database", "db"],            keys: ["postgresql", "postgres", "mysql", "mongodb", "redis", "elasticsearch", "sqlite", "cassandra", "dynamodb", "mariadb", "oracle", "sql"] },
-      { signals: ["devops", "cloud", "infra", "deploy", "ci"],  keys: ["docker", "kubernetes", "aws", "azure", "gcp", "terraform", "jenkins", "ansible", "cicd", "helm", "linux", "github", "gitlab"] },
-      { signals: ["mobile", "movil", "móvil"],                  keys: ["react native", "flutter", "android", "ios", "swift", "kotlin", "ionic"] },
+    // Detect category type from its ITEMS (not its name — user CVs have Spanish names).
+    const ITEM_SIGNALS = [
+      { type: "frontend", keys: ["react", "vue", "angular", "svelte", "html", "css", "javascript", "typescript", "nextjs", "nuxtjs", "sass", "scss", "redux", "webpack", "vite", "jquery", "bootstrap", "tailwind", "gatsby", "remix", "astro"] },
+      { type: "backend",  keys: ["nodejs", "express", "django", "flask", "rails", "spring", "php", "fastapi", "nestjs", "koa", "graphql", "restful", "python", "golang", "java", "laravel", "aspnet", "dotnet"] },
+      { type: "database", keys: ["postgresql", "postgres", "mysql", "mongodb", "redis", "elasticsearch", "sqlite", "cassandra", "mariadb", "oracle", "sql", "dynamodb", "firebase", "supabase"] },
+      { type: "devops",   keys: ["docker", "kubernetes", "aws", "azure", "gcp", "terraform", "jenkins", "circleci", "cicd", "linux", "github", "gitlab", "helm", "nginx", "ansible", "argocd", "github actions", "gitlab ci"] },
+      { type: "mobile",   keys: ["react native", "flutter", "android", "ios", "swift", "kotlin", "ionic", "expo", "capacitor"] },
     ];
+
+    const catTypes = skills.map((sg) => {
+      const itemsNorm = (sg.items || []).map((i) => this._normalize(i));
+      for (const { type, keys } of ITEM_SIGNALS) {
+        if (keys.some((k) => itemsNorm.some((item) => item === k || item.startsWith(k.slice(0, 4)) || k.startsWith(item.slice(0, 4))))) {
+          return type;
+        }
+      }
+      return null;
+    });
 
     const unmatched = [];
 
     for (const kw of allKeywords) {
-      const kwNorm = kw.toLowerCase().replace(/[.\-_]/g, "");
+      const kwNorm = this._normalize(kw);
+      const kwAliases = ALIAS_MAP.get(kwNorm) || [];
 
-      // Skip keywords already present in any category
-      if (existingNorm.has(kwNorm)) continue;
+      // Skip descriptive phrases (4+ words are sentences, not technology keywords)
+      if (kwNorm.split(" ").length > 3) continue;
 
+      // Skip if already present (exact, alias, or first-4-chars prefix match)
+      if (existingNorm.has(kwNorm) || kwAliases.some((a) => existingNorm.has(a))) continue;
+      if (kwNorm.length >= 4) {
+        const prefix = kwNorm.slice(0, 4);
+        const alreadyThere = [...existingNorm].some(
+          (e) => e.length >= 4 && (e.startsWith(prefix) || kwNorm.startsWith(e.slice(0, 4)))
+        );
+        if (alreadyThere) continue;
+      }
+
+      // Try to place in a matching category (detected by items, not name)
       let placed = false;
-
-      for (const sg of skills) {
-        const catNorm = (sg.category || "").toLowerCase();
-        for (const { signals, keys } of SIGNALS) {
-          if (!signals.some((s) => catNorm.includes(s))) continue;
-          if (!keys.some((k) => kwNorm.startsWith(k.slice(0, 4)) || k.startsWith(kwNorm.slice(0, 4)))) continue;
-          sg.items.push(this._prettifyKeyword(kw));
+      for (let i = 0; i < skills.length; i++) {
+        const catType = catTypes[i];
+        if (!catType) continue;
+        const { keys } = ITEM_SIGNALS.find((s) => s.type === catType) || {};
+        if (!keys) continue;
+        if (keys.some((k) => kwNorm.startsWith(k.slice(0, 4)) || k.startsWith(kwNorm.slice(0, 4)))) {
+          skills[i].items.push(this._prettifyKeyword(kw));
           existingNorm.add(kwNorm);
           placed = true;
           break;
         }
-        if (placed) break;
       }
+
       if (!placed) unmatched.push(kw);
     }
 
     if (unmatched.length > 0) {
-      // Append to existing "Stack adicional" category if present, else create one
-      const stackCat = skills.find((sg) => sg.category === "Stack adicional");
+      const stackCat = skills.find((sg) => /stack\s+adicional/i.test(sg.category));
       if (stackCat) {
         const prettified = unmatched.map((kw) => this._prettifyKeyword(kw));
         stackCat.items.push(...prettified.filter((p) => !stackCat.items.includes(p)));
@@ -717,15 +844,25 @@ Devuelve SOLO un JSON válido con esta estructura:
   _prettifyKeyword(kw) {
     const MAP = {
       javascript: "JavaScript", typescript: "TypeScript", nodejs: "Node.js",
-      reactjs: "ReactJS", vuejs: "VueJS", angularjs: "AngularJS",
-      postgresql: "PostgreSQL", mongodb: "MongoDB", kubernetes: "Kubernetes",
-      github: "GitHub", gitlab: "GitLab", graphql: "GraphQL",
-      html: "HTML", css: "CSS", sql: "SQL", aws: "AWS", gcp: "GCP",
-      php: "PHP", api: "API", rest: "REST", cicd: "CI/CD",
+      reactjs: "React", vuejs: "Vue.js", angularjs: "Angular",
+      nextjs: "Next.js", nuxtjs: "Nuxt.js", nestjs: "NestJS",
+      expressjs: "Express.js", postgresql: "PostgreSQL", mongodb: "MongoDB",
+      kubernetes: "Kubernetes", github: "GitHub", gitlab: "GitLab",
+      graphql: "GraphQL", html: "HTML", html5: "HTML5", css: "CSS", css3: "CSS3",
+      scss: "SCSS", sass: "SASS", sql: "SQL", aws: "AWS", gcp: "GCP",
+      php: "PHP", cicd: "CI/CD", oauth: "OAuth", oauth2: "OAuth2",
+      redux: "Redux", prisma: "Prisma", mongoose: "Mongoose",
+      typeorm: "TypeORM", sequelize: "Sequelize", drizzle: "Drizzle",
+      rabbitmq: "RabbitMQ", "github actions": "GitHub Actions",
+      "google cloud": "Google Cloud", "rest api": "REST API",
+      "react native": "React Native", "testing library": "Testing Library",
+      "styled components": "Styled Components",
     };
-    const norm = kw.toLowerCase().replace(/[.\-_]/g, "");
+    const norm = this._normalize(kw);
     if (MAP[norm]) return MAP[norm];
-    return kw.length <= 4 ? kw.toUpperCase() : kw.charAt(0).toUpperCase() + kw.slice(1);
+    // Short acronyms (≤4 chars, no spaces) → all caps
+    if (kw.length <= 4 && !kw.includes(" ")) return kw.toUpperCase();
+    return kw.charAt(0).toUpperCase() + kw.slice(1);
   }
 
   // ─── Text Formatter ──────────────────────────────────────────────────────────

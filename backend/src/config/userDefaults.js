@@ -1,5 +1,11 @@
+export const DEFAULT_LANGUAGES = [
+  { name: "Español", level: "Nativo" },
+  { name: "Inglés",  level: "B2 - Avanzado", certificateUrl: "https://cert.efset.org/en/G1QU2J" },
+];
+
 // Default personal info applied when generated CV fields are empty
 export const DEFAULT_PERSONAL_INFO = {
+  name:      "Agustín Molé",
   location:  "Mendoza, Argentina",
   linkedin:  "https://www.linkedin.com/in/agust%C3%ADn-mol%C3%A9-barolo-b042141b1/",
   github:    "https://github.com/aguustin",
@@ -10,23 +16,22 @@ export const DEFAULT_PERSONAL_INFO = {
 export const DEFAULT_SKILL_CATEGORIES = [
   { category: "Frontend",        items: ["React", "Next.js", "React Native", "TypeScript", "JavaScript", "HTML5", "CSS3", "TailwindCSS", "Expo"] },
   { category: "Backend",         items: ["Node.js", "Express.js", "Python", "Django", "PHP", "REST API", "JWT", "Socket.io"] },
-  { category: "Base de datos",   items: ["MongoDB", "PostgreSQL", "MySQL"] },
-  { category: "DevOps",          items: ["Docker", "Git", "GitHub", "Vercel", "MinIO"] },
+  { category: "Base de datos",   items: ["MongoDB", "PostgreSQL", "MySQL", "NoSQL"] },
+  { category: "DevOps",          items: ["Docker", "Docker Compose", "Git", "GitHub", "CI/CD","Vercel", "MinIO", "AWS", "Google Cloud"] },
   { category: "Herramientas",    items: ["Postman", "VS Code", "Figma", "Jira"] },
+  { category: "Metodologias",    items: ["Scrum", "Kanban"] },
   { category: "Stack adicional", items: [] },
 ];
 
 // Default summary used when Ollama doesn't generate one
-export const DEFAULT_SUMMARY = "Desarrollador Web Full Stack con más de 6 años de experiencia en el diseño, desarrollo e implementación de aplicaciones web y móviles escalables, modernas y orientadas a negocio. Especializado en JavaScript/TypeScript y ecosistemas React (ReactJS, Next.js, React Native) junto con desarrollo backend en Node.js, Python/Django y PHP. Experiencia desarrollando plataformas SaaS, sistemas de automatización con IA, aplicaciones mobile, integraciones con APIs externas y pasarelas de pago.\n\nHe liderado y desarrollado de forma autónoma soluciones full stack para el sector público y privado, incluyendo sistemas de gestión, plataformas con inteligencia artificial, aplicaciones en tiempo real y herramientas de automatización de procesos. Manejo de tecnologías modernas como MongoDB, PostgreSQL, JWT, TailwindCSS, Docker, GitHub y Postman, con enfoque en arquitectura escalable, experiencia de usuario y desarrollo ágil orientado a resultados.";
+export const DEFAULT_SUMMARY = "Desarrollador Web Full Stack con más de 6 años de experiencia en el diseño, desarrollo e implementación de aplicaciones web y móviles escalables, modernas y orientadas a negocio. Especializado en JavaScript/TypeScript y ecosistemas React (ReactJS, Next.js, React Native) junto con desarrollo backend en Node.js, Python/Django y PHP. Experiencia desarrollando plataformas SaaS, sistemas de automatización con IA, aplicaciones mobile, integraciones con APIs externas y pasarelas de pago.\n\nHe liderado y desarrollado de forma autónoma soluciones full stack para el sector público y privado, incluyendo sistemas de gestión, plataformas con inteligencia artificial, aplicaciones en tiempo real y herramientas de automatización de procesos. Manejo de tecnologías modernas como MongoDB, PostgreSQL, JWT, TailwindCSS, Docker, GitHub y Postman, con enfoque en arquitectura escalable, experiencia de usuario y desarrollo ágil orientado a resultados. Además, cuento con experiencia como profesor de programación, formando estudiantes en desarrollo de software y acompañándolos en el aprendizaje de tecnologías y conceptos de programación.";
 
-// Certifications always included in every generated CV
 export const DEFAULT_CERTIFICATIONS = [
-  { name: "Desarrollador Móvil con React Native", issuer: "Udemy",      date: "Mar 2023 – Jul 2023" },
-  { name: "Desarrollador ReactJS",                issuer: "Coderhouse", date: "May 2021 – Nov 2021" },
-  { name: "Desarrollador Web Full Stack",          issuer: "Udemy",      date: "Feb 2020 – Ago 2020" },
-  { name: "SCRUM",                                 issuer: "Kodigo",     date: "May 2023 – Jul 2023" },
-  { name: "React Native",                          issuer: "Coderhouse", date: "Jul 2022 – Oct 2022" },
-  { name: "Desarrollador Python + Django",         issuer: "Udemy",      date: "Ago 2024 – Nov 2024" },
+  { name: "Desarrollador Móvil con React Native", issuer: "Udemy",      date: "Mar 2023 – Jul 2023", url: "https://www.udemy.com/certificate/UC-b09fde1b-84a0-4db4-bad3-01e2c19be3d2/" },
+  { name: "Desarrollador ReactJS + Firebase",     issuer: "Coderhouse", date: "May 2021 – Nov 2021", url: "https://postimg.cc/gallery/WqGLR3C" },
+  { name: "Desarrollador Web Full Stack",         issuer: "Udemy",      date: "Feb 2020 – Ago 2020", url: "https://www.udemy.com/certificate/UC-09B65a8b-e7b2-47af-824e-f0d66d218253/" },
+  { name: "SCRUM",                                issuer: "Kodigo",     date: "May 2023 – Jul 2023", url: "https://postimg.cc/gallery/WqGLR3C" },
+  { name: "Desarrollador Python + Django",        issuer: "Udemy",      date: "Ago 2024 – Nov 2024" },
 ];
 
 // Regular experience entries always used as canonical base (role/company/dates come from here;
@@ -40,12 +45,19 @@ export const DEFAULT_REGULAR_EXPERIENCE = [
     achievements: [],
   },
   {
+    role: "Profesor de Programación",
+    company: "Casa del Futuro — Mendoza, Argentina",
+    startDate: "Jul 2025",
+    endDate: "Presente",
+    achievements: [],
+  },
+  {
     role: "Desarrollador PHP",
     company: "DivisionGIS — Mendoza, Argentina",
     startDate: "Mar 2020",
     endDate: "Feb 2022",
     achievements: [],
-  },
+  }
 ];
 
 // Projects always injected after regular experience (replace anything Ollama generates)

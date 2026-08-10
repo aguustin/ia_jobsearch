@@ -126,7 +126,10 @@ router.post("/:id/generate-message", async (req, res) => {
     if (!job) return res.status(404).json({ error: "Job not found" });
     if (!profile) return res.status(400).json({ error: "Profile not configured" });
 
-    const result = await messageGenerator.generate(job, profile, { tone, language, maxLength });
+    const requiresEnglish = /ingl[eé]s/i.test(job.description || "");
+    const resolvedLanguage = requiresEnglish ? "english" : (language || "spanish");
+
+    const result = await messageGenerator.generate(job, profile, { tone, language: resolvedLanguage, maxLength });
 
     await Job.findByIdAndUpdate(req.params.id, {
       applicationMessage: result.message,

@@ -31,8 +31,8 @@ class OllamaService {
       format: "json",
       options: {
         temperature: 0.1,
-        num_predict: 2048,
-        num_ctx: 4096,
+        num_predict: options.maxTokens ?? 2048,
+        num_ctx: options.numCtx ?? 4096,
       },
     });
     return this._parseJSON(data.response);

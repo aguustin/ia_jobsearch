@@ -34,12 +34,14 @@ const EducationSchema = new mongoose.Schema({
 const LanguageSchema = new mongoose.Schema({
   name: String,
   level: String,
+  certificateUrl: String,
 }, { _id: false });
 
 const CertificationSchema = new mongoose.Schema({
   name: String,
   issuer: String,
   date: String,
+  url: String,
 }, { _id: false });
 
 const CVSchema = new mongoose.Schema({

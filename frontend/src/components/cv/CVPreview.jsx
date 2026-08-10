@@ -59,7 +59,9 @@ function formatCVText(cv) {
   }
   if ((cv.languages || []).length > 0) {
     lines.push("IDIOMAS", sep);
-    cv.languages.forEach((l) => { if (l.name) lines.push(`${l.name}: ${l.level || ""}`); });
+    cv.languages.forEach((l) => {
+      if (l.name) lines.push(`${l.name}: ${l.level || ""}${l.certificateUrl ? ` · ${l.certificateUrl}` : ""}`);
+    });
     lines.push("");
   }
   if ((cv.certifications || []).length > 0) {
@@ -374,7 +376,11 @@ function DownloadTxtButton({ getText, filename }) {
     const blob = new Blob([getText()], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = filename; a.click();
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
   return (
@@ -617,6 +623,14 @@ function StructuredEditor({ cv, update, sectionOrder, moveSection, exactSet, fuz
                 variant="body2" fontWeight={600} placeholder="Idioma..." />
               <EditableText value={l.level} onChange={(v) => update.langField(i, "level", v)}
                 variant="caption" sx={{ color: "text.secondary" }} placeholder="Nivel..." />
+              <EditableText value={l.certificateUrl || ""} onChange={(v) => update.langField(i, "certificateUrl", v)}
+                variant="caption" placeholder="URL certificado..." sx={{ color: "primary.main", fontStyle: "italic" }} />
+              {l.certificateUrl && (
+                <Typography variant="caption" component="a" href={l.certificateUrl} target="_blank" rel="noopener noreferrer"
+                  sx={{ display: "block", color: "primary.main", fontSize: 10, mt: 0.25, textDecoration: "underline", cursor: "pointer" }}>
+                  ver certificado ↗
+                </Typography>
+              )}
             </Box>
           ))}
         </Stack>
@@ -642,6 +656,12 @@ function StructuredEditor({ cv, update, sectionOrder, moveSection, exactSet, fuz
                 <Typography variant="caption" color="text.disabled">|</Typography>
                 <EditableText value={c.issuer} onChange={(v) => update.certField(i, "issuer", v)}
                   variant="caption" sx={{ color: "primary.light" }} placeholder="Institución..." />
+                {c.url && (
+                  <Typography variant="caption" component="a" href={c.url} target="_blank" rel="noopener noreferrer"
+                    sx={{ color: "primary.main", fontSize: 10, textDecoration: "underline", cursor: "pointer" }}>
+                    ver certificado ↗
+                  </Typography>
+                )}
                 <Typography variant="caption" color="text.disabled">|</Typography>
                 <EditableText value={c.date} onChange={(v) => update.certField(i, "date", v)}
                   variant="caption" sx={{ color: "text.disabled" }} placeholder="Período..." />
