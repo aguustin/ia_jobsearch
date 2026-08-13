@@ -64,7 +64,7 @@ const defaultProfile = {
     technologies: ["React", "Node.js", "TypeScript", "MongoDB", "React Native"],
     remoteOnly: true,
     locations: ["Argentina", "Remote"],
-    salaryMin: 3000,
+    salaryMin: 2300,
     currency: "USD",
     avoidCompanies: [],
     avoidIndustries: [],

@@ -5,7 +5,7 @@
  * It must be consulted before generating or adapting any CV.
  *
  * ──────────────────────────────────────────────────────────────────────────────
- * TECHNOLOGY EVIDENCE CATEGORIES
+ * TECHNOLOGY EVIDENCE CATEGORIES  (apply to TECHNOLOGY_EVIDENCE_MATRIX only)
  * ──────────────────────────────────────────────────────────────────────────────
  *
  *   A — Professional Experience
@@ -23,11 +23,20 @@
  *       No sufficient evidence. Do NOT include in any CV.
  *
  * ──────────────────────────────────────────────────────────────────────────────
- * PENDING MARKERS
+ * PROJECT EVIDENCE FIELDS  (apply to MASTER_PROFILE.projects only)
  * ──────────────────────────────────────────────────────────────────────────────
  *
- *   Fields marked with // PENDING indicate information that should be completed
- *   with real data before use. Never use PENDING data as verified content.
+ *   source:   "professional" — completed in an employment context
+ *             "freelance"    — paid external work
+ *             "personal"     — self-initiated portfolio / learning project
+ *             "teaching"     — built for educational purposes
+ *
+ *   evidence: "verified"  — details fully confirmed; safe to include
+ *             "partial"   — exists but some details (stack, features) are unconfirmed
+ *             "pending"   — not yet documented; never auto-select for CV
+ *
+ *   Projects with evidence: "pending" must NEVER be auto-selected.
+ *   Projects with evidence: "partial" may be included at lower priority.
  *
  * ──────────────────────────────────────────────────────────────────────────────
  * COMPATIBILITY
@@ -231,7 +240,7 @@ export const TECHNOLOGY_EVIDENCE_MATRIX = [
     name: "SQLite",
     normalized: "sqlite",
     category: "C",
-    evidence: "Basic familiarity in development contexts",
+    evidence: "Basic familiarity in development contexts — no confirmed project implementation",
     wording: "Familiarity",
     tags: ["database", "sql"],
   },
@@ -398,9 +407,12 @@ export const TECHNOLOGY_EVIDENCE_MATRIX = [
   {
     name: "JWT",
     normalized: "jwt",
-    category: "B",
-    evidence: "Personal projects: SaaS Event Platform, Municipal works system, Security Platform",
-    wording: "Hands-on / project experience",
+    // A: JWT is listed in Municipalidad de Godoy Cruz's professional technologies
+    // (municipal works system uses JWT for role-based access control).
+    // Also present in SaaS Event Platform and Security Platform personal projects.
+    category: "A",
+    evidence: "Professional at Municipalidad de Godoy Cruz (municipal works system with role-based JWT auth) + personal projects (SaaS Event Platform, Security Platform)",
+    wording: "Professional experience",
     tags: ["auth", "backend"],
   },
   {
@@ -466,11 +478,14 @@ export const TECHNOLOGY_EVIDENCE_MATRIX = [
     tags: ["storage", "media"],
   },
   {
+    // S3 as a concept/API: used indirectly via MinIO (S3-compatible) at Municipalidad.
+    // MinIO is category A (professional). S3 the AWS service itself has NOT been used directly.
+    // Classify as B: can claim S3-compatible API experience, but must clarify it is via MinIO.
     name: "S3",
     normalized: "s3",
-    category: "A",
-    evidence: "MinIO (S3-compatible) used professionally at Municipalidad de Godoy Cruz",
-    wording: "Experience via S3-compatible (MinIO)",
+    category: "B",
+    evidence: "S3-compatible API used professionally via MinIO at Municipalidad de Godoy Cruz — not AWS S3 directly",
+    wording: "Experience via S3-compatible API (MinIO) — not AWS S3 directly",
     tags: ["storage", "cloud"],
   },
 
@@ -703,10 +718,10 @@ export const MASTER_PROFILE = {
       achievements: [
         "Desarrollé y mantuve aplicaciones web full stack para el sector público, utilizando React y TypeScript en frontend y Node.js con Express.js en backend.",
         "Diseñé e implementé REST APIs para sistemas internos de gestión municipal con autenticación JWT y control de acceso por roles.",
-        "Construí plataforma de gestión de planos técnicos con flujo de estados de trámite (presentado → en revisión → observado → pre-aprobado), versionado de documentos y notificaciones por email.",
+        "Construí plataforma de gestión de planos técnicos con flujo de estados del trámite: presentado > en revisión > observado > pre-aprobado, con versionado de documentos y notificaciones por email.",
         "Implementé almacenamiento seguro de archivos con MinIO (S3-compatible), generación de URLs firmadas para descarga y compresión de PDFs.",
         "Integré análisis de documentos PDF con IA para asistencia en la revisión técnica de planos.",
-        "Mantuve y evoluccioné aplicaciones existentes, analizando e implementando nuevos requerimientos del área municipal.",
+        "Mantuve y evolucioné aplicaciones existentes, analizando e implementando nuevos requerimientos del área municipal.",
       ],
 
       // The key project integrated in this experience
@@ -764,9 +779,14 @@ export const MASTER_PROFILE = {
 
   // ── Projects ─────────────────────────────────────────────────────────────────
   // Metadata enables adaptive selection based on job type.
+  //
   // roleTypes: fullstack | backend | frontend | mobile | ai | saas | ecommerce | realtime | api | automation
   // strength:  high | medium | low  (how strong is this as supporting evidence)
-  // evidenceLevel: A (professional) | B (personal/hands-on)
+  //
+  // source:    "professional" | "freelance" | "personal" | "teaching"
+  // evidence:  "verified"  — details confirmed; safe to include in CV
+  //            "partial"   — exists but some details (stack, features) are unconfirmed
+  //            "pending"   — undocumented; NEVER auto-select for CV
   projects: [
     {
       id:           "saas-event-ticketing",
@@ -775,7 +795,8 @@ export const MASTER_PROFILE = {
       description:  "Plataforma completa para gestión de eventos con venta de entradas y procesamiento de pagos end-to-end integrado a Mercado Pago. Incluye manejo de webhooks, control de capacidad, administración de usuarios y trabajadores, y autenticación JWT.",
       technologies: ["React", "Node.js", "Express.js", "MongoDB", "TailwindCSS", "Mercado Pago", "JWT", "REST APIs"],
       roleTypes:    ["fullstack", "backend", "saas", "ecommerce", "api"],
-      evidenceLevel: "B",
+      source:       "personal",
+      evidence:     "verified",
       strength:     "high",
       aiAssisted:   false,
       achievements: [
@@ -796,7 +817,8 @@ export const MASTER_PROFILE = {
       description:  "Plataforma colaborativa con tableros Kanban, drag & drop, actualizaciones optimistas, compartición de listas por email, comentarios por tarea, notificaciones y adjuntos de archivos. Backend Django REST Framework + PostgreSQL, frontend Next.js 14 con TailwindCSS, contenerizado con Docker.",
       technologies: ["Python", "Django", "Django REST Framework", "PostgreSQL", "Next.js", "React", "TailwindCSS", "Docker", "Cloudinary"],
       roleTypes:    ["fullstack", "backend", "api"],
-      evidenceLevel: "B",
+      source:       "personal",
+      evidence:     "verified",
       strength:     "high",
       aiAssisted:   false,
       achievements: [
@@ -817,7 +839,8 @@ export const MASTER_PROFILE = {
       description:  "Aplicación de e-commerce para búsqueda, filtrado y gestión de productos, carrito de compras y checkout simulado con control de acceso por roles.",
       technologies: ["Python", "Django", "Next.js", "React", "TailwindCSS"],
       roleTypes:    ["fullstack", "frontend", "ecommerce"],
-      evidenceLevel: "B",
+      source:       "personal",
+      evidence:     "verified",
       strength:     "medium",
       aiAssisted:   false,
       achievements: [
@@ -834,11 +857,14 @@ export const MASTER_PROFILE = {
     {
       id:           "twitter-clone",
       name:         "Twitter / X Clone",
+      // Stack not fully confirmed — do not list technologies until verified.
+      // This project can only be included at evidence: "partial", lower priority.
       stack:        "", // PENDING: Confirm exact stack
       description:  "Aplicación Full Stack desarrollada desde cero replicando funcionalidades principales de Twitter/X: autenticación, feed, interacciones sociales y perfiles de usuario.",
       technologies: [], // PENDING: Specify exact technologies used
       roleTypes:    ["fullstack", "frontend", "backend", "api"],
-      evidenceLevel: "B",
+      source:       "personal",
+      evidence:     "partial", // Stack unconfirmed — include only when stronger projects are not available
       strength:     "low",
       aiAssisted:   false,
       achievements: [
@@ -846,8 +872,7 @@ export const MASTER_PROFILE = {
         "Implementé autenticación y autorización desde cero.",
         "Diseñé arquitectura Full Stack completa de la aplicación.",
       ],
-      warnings:  [],
-      _pending:  "Stack not fully confirmed. Verify and add specific technologies. Low priority — include only when stronger projects are not available.",
+      warnings: ["Stack not fully confirmed. Verify and add specific technologies before including in a CV."],
       prioritize:   ["fullstack", "frontend"],
       deprioritize: ["backend-heavy", "ai", "mobile", "saas"],
     },
@@ -859,7 +884,8 @@ export const MASTER_PROFILE = {
       description:  "Plataforma de gestión de seguridad con autenticación biométrica facial, monitoreo de ubicación en tiempo real, alertas de emergencia, check-in/check-out de guardias, chat interno, dashboard administrativo y gestión de finanzas. Desarrollado con workflow de ingeniería AI-assisted.",
       technologies: ["React Native", "Expo", "Node.js", "PostgreSQL", "Socket.io", "face-api.js", "TensorFlow.js", "JWT", "REST APIs"],
       roleTypes:    ["fullstack", "backend", "mobile", "realtime", "api"],
-      evidenceLevel: "B",
+      source:       "personal",
+      evidence:     "verified",
       strength:     "high",
       aiAssisted:   true,
       aiDescription: "Developed using an AI-assisted engineering workflow, with architecture, implementation decisions, validation and iteration directed by me.",
@@ -881,7 +907,8 @@ export const MASTER_PROFILE = {
       description:  "Sistema de automatización para captación de leads: búsqueda de negocios por nicho, recopilación de datos de contacto desde múltiples fuentes, generación de insights comerciales con IA y sugerencias de outreach personalizadas.",
       technologies: ["React", "Node.js", "MongoDB", "REST APIs", "Claude API", "AI/LLM integration", "Web scraping"],
       roleTypes:    ["fullstack", "backend", "ai", "automation", "saas", "api"],
-      evidenceLevel: "B",
+      source:       "personal",
+      evidence:     "verified",
       strength:     "high",
       aiAssisted:   true,
       aiDescription: "Developed using an AI-assisted engineering workflow.",
@@ -902,7 +929,8 @@ export const MASTER_PROFILE = {
       description:  "Plataforma que agrega ofertas laborales desde múltiples fuentes externas (APIs y scrapers), aplica ranking y análisis de compatibilidad con IA generativa, y ofrece generación de CVs ATS-optimizados adaptados a cada oferta.",
       technologies: ["React", "Node.js", "Express.js", "MongoDB", "REST APIs", "Claude API", "Ollama", "AI/LLM integration"],
       roleTypes:    ["fullstack", "backend", "ai", "automation", "saas", "api"],
-      evidenceLevel: "B",
+      source:       "personal",
+      evidence:     "verified",
       strength:     "high",
       aiAssisted:   true,
       aiDescription: "Developed using an AI-assisted engineering workflow.",
@@ -925,7 +953,8 @@ export const MASTER_PROFILE = {
       description:  "Plataforma profesional desarrollada en la Municipalidad de Godoy Cruz para la gestión de trámites de planos técnicos. Control de acceso por roles, versionado, workflow de estados, notificaciones, almacenamiento S3 y análisis IA de documentos PDF.",
       technologies: ["React", "Node.js", "Express.js", "MongoDB", "MinIO", "Docker", "JWT", "REST APIs"],
       roleTypes:    ["fullstack", "backend", "saas", "api", "ai"],
-      evidenceLevel: "A",
+      source:       "professional",
+      evidence:     "verified",
       strength:     "high",
       aiAssisted:   false,
       achievements: [
@@ -942,7 +971,8 @@ export const MASTER_PROFILE = {
       deprioritize: ["mobile", "ecommerce", "frontend-only"],
     },
 
-    // ── Projects with incomplete information — marked PENDING ─────────────────
+    // ── Projects with incomplete information — evidence: "pending" ─────────────
+    // These are NEVER auto-selected. Add details before including in any CV.
 
     {
       id:           "saas-store-management",
@@ -951,12 +981,12 @@ export const MASTER_PROFILE = {
       description:  "", // PENDING
       technologies: [], // PENDING
       roleTypes:    ["fullstack", "saas"], // preliminary
-      evidenceLevel: "B",
+      source:       "personal",
+      evidence:     "pending", // Not yet documented — add description, stack, features, achievements
       strength:     "unknown",
       aiAssisted:   false,
-      achievements: [], // PENDING
-      warnings:     [],
-      _pending:     "Project details not documented. Add: description, stack, main features, achievements.",
+      achievements: [],
+      warnings:     ["Project details not documented. Add: description, stack, main features, achievements before use."],
       prioritize:   [],
       deprioritize: [],
     },
@@ -968,12 +998,12 @@ export const MASTER_PROFILE = {
       description:  "", // PENDING
       technologies: [], // PENDING
       roleTypes:    ["fullstack", "saas", "automation"], // preliminary
-      evidenceLevel: "B",
+      source:       "personal",
+      evidence:     "pending", // Not yet documented — add description, stack, features, achievements
       strength:     "unknown",
       aiAssisted:   false,
-      achievements: [], // PENDING
-      warnings:     [],
-      _pending:     "Project details not documented. Add: description, stack, main features, achievements.",
+      achievements: [],
+      warnings:     ["Project details not documented. Add: description, stack, main features, achievements before use."],
       prioritize:   [],
       deprioritize: [],
     },
@@ -985,12 +1015,12 @@ export const MASTER_PROFILE = {
       description:  "", // PENDING — clarify if distinct from AI Lead Generation
       technologies: [], // PENDING
       roleTypes:    ["ai", "automation", "saas"], // preliminary
-      evidenceLevel: "B",
+      source:       "personal",
+      evidence:     "pending", // Not yet documented — clarify if distinct from AI Lead Generation Platform
       strength:     "unknown",
       aiAssisted:   true,
-      achievements: [], // PENDING
-      warnings:     [],
-      _pending:     "Project details not documented. Clarify if distinct from AI Lead Generation Platform.",
+      achievements: [],
+      warnings:     ["Project details not documented. Clarify if distinct from AI Lead Generation Platform before use."],
       prioritize:   [],
       deprioritize: [],
     },
@@ -1083,7 +1113,7 @@ export const MASTER_PROFILE = {
     },
     {
       name:           "Inglés",
-      level:          "B2 - Avanzado",
+      level:          "B1 - Intermedio",
       certificateUrl: "https://cert.efset.org/en/G1QU2J",
       // Do not represent as C1/C2 or "Fluent" without additional evidence
     },
@@ -1095,15 +1125,17 @@ export const MASTER_PROFILE = {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Returns projects that match a given role type, excluding PENDING projects
- * (those with empty achievements or a _pending marker), sorted by strength.
+ * Returns projects that match a given role type, excluding projects with
+ * evidence: "pending" (undocumented) or empty achievements, sorted by strength.
+ *
+ * Projects with evidence: "partial" are included but sorted lower.
  */
 export function getProjectsForRoleType(roleType) {
   const STRENGTH_ORDER = { high: 0, medium: 1, low: 2, unknown: 3 };
   return MASTER_PROFILE.projects
     .filter(
       (p) =>
-        !p._pending &&
+        p.evidence !== "pending" &&
         p.achievements.length > 0 &&
         p.roleTypes.includes(roleType)
     )
@@ -1114,17 +1146,26 @@ export function getProjectsForRoleType(roleType) {
 
 /**
  * Returns the top N projects for a role type, applying prioritize/deprioritize hints.
- * Projects that explicitly deprioritize this roleType are moved to the end.
+ *
+ * Scoring rules:
+ *   - Base score from strength (high=0, medium=1, low=2, unknown=3)
+ *   - evidence "partial" adds +1 (slight penalty — prefer verified)
+ *   - prioritize match subtracts 2 (moves to front)
+ *   - deprioritize match adds 3 (moves to back)
+ *   - Lower score = higher priority
+ *
+ * Projects with evidence: "pending" are always excluded regardless of maxCount.
  */
 export function selectProjects(roleType, maxCount = 5) {
   const all = MASTER_PROFILE.projects.filter(
-    (p) => !p._pending && p.achievements.length > 0
+    (p) => p.evidence !== "pending" && p.achievements.length > 0
   );
 
   const STRENGTH_ORDER = { high: 0, medium: 1, low: 2, unknown: 3 };
 
   const scored = all.map((p) => {
     let score = STRENGTH_ORDER[p.strength] ?? 3;
+    if (p.evidence === "partial") score += 1;    // slight penalty — prefer verified projects
     if (p.prioritize.includes(roleType)) score -= 2;
     if (p.deprioritize.includes(roleType)) score += 3;
     return { ...p, _score: score };

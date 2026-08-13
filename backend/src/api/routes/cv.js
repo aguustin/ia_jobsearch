@@ -109,8 +109,10 @@ router.post("/generate-ats", async (req, res) => {
       optimizedCV, jdAnalysis, optimizedText + " " + cv.rawText
     );
 
-    // Step 5: inject all JD keywords into skill categories so every keyword appears in Habilidades Técnicas
-    const optimizedCVWithKeywords = atsOptimizerService.injectMissingKeywords(
+    // Step 5: recover only A/B-evidence keywords missing from the adaptive CV
+    // recoverMissingSupportedKeywords checks masterProfile evidence before adding any keyword;
+    // C and D evidence technologies are never added (replaces legacy injectMissingKeywords).
+    const optimizedCVWithKeywords = atsOptimizerService.recoverMissingSupportedKeywords(
       optimizedCV, jdAnalysis.keywords
     );
 
