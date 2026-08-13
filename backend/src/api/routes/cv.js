@@ -109,10 +109,11 @@ router.post("/generate-ats", async (req, res) => {
       optimizedCV, jdAnalysis, optimizedText + " " + cv.rawText
     );
 
-    // Step 5: recover only A/B-evidence keywords missing from the adaptive CV
-    // recoverMissingSupportedKeywords checks masterProfile evidence before adding any keyword;
-    // C and D evidence technologies are never added (replaces legacy injectMissingKeywords).
-    const optimizedCVWithKeywords = atsOptimizerService.recoverMissingSupportedKeywords(
+    // Step 5: recover missing JD keywords into the correct skill category.
+    // recoverMissingKeywords() places A/B-evidence tech normally, C-tier (e.g. AWS)
+    // in its proper category (not hidden), and D/unverified tech for manual review —
+    // it never fabricates achievements, only adds Skills entries the user can edit/remove.
+    const optimizedCVWithKeywords = atsOptimizerService.recoverMissingKeywords(
       optimizedCV, jdAnalysis.keywords
     );
 

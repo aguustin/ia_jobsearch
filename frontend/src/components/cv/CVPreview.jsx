@@ -28,6 +28,7 @@ function formatCVText(cv) {
   const pi = cv.personalInfo || {};
   const sep = "─".repeat(55);
   if (pi.name) { lines.push(pi.name.toUpperCase(), ""); }
+  if (pi.title) { lines.push(pi.title, ""); }
   const contact = [pi.email, pi.phone, pi.location, pi.linkedin, pi.github].filter(Boolean);
   if (contact.length) { lines.push(contact.join("  |  "), ""); }
   if (cv.summary) { lines.push("RESUMEN PROFESIONAL", sep, cv.summary, ""); }
@@ -691,6 +692,8 @@ function StructuredEditor({ cv, update, sectionOrder, moveSection, exactSet, fuz
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <EditableText value={pi.name} onChange={(v) => update.personalInfo("name", v)}
             variant="h5" fontWeight={700} placeholder="Tu nombre..." />
+          <EditableText value={pi.title} onChange={(v) => update.personalInfo("title", v)}
+            variant="subtitle2" sx={{ color: "secondary.light", mt: 0.25 }} placeholder="Título adaptado a la oferta..." />
           <Stack direction="row" flexWrap="wrap" gap={1} mt={0.5}>
             {["email", "phone", "location", "linkedin", "github", "portfolio"].map((field) => (
               <EditableText key={field} value={pi[field]} onChange={(v) => update.personalInfo(field, v)}

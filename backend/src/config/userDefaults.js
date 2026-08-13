@@ -1,6 +1,10 @@
+// NOTE: level must stay in sync with MASTER_PROFILE.languages (masterProfile.js).
+// This is only used by the legacy fallback path in ATSOptimizerService.js
+// (_normalizeOptimizedCV, invoked if optimizeCV() throws) — it must never show
+// a different English level than the primary adaptive pipeline.
 export const DEFAULT_LANGUAGES = [
   { name: "Español", level: "Nativo" },
-  { name: "Inglés",  level: "B2 - Avanzado", certificateUrl: "https://cert.efset.org/en/G1QU2J" },
+  { name: "Inglés",  level: "B1 - Intermedio", certificateUrl: "https://cert.efset.org/en/G1QU2J" },
 ];
 
 // Default personal info applied when generated CV fields are empty

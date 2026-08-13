@@ -127,112 +127,125 @@ const ITEM_SIGNALS = [
   { type: "mobile",   keys: ["react native", "flutter", "android", "ios", "swift", "kotlin", "ionic", "expo", "capacitor"] },
 ];
 
-// ─── Adaptive skill category templates per job type ───────────────────────────
-// Each entry defines category order and the candidate tech pool.
-// Technologies NOT in masterProfile with evidence A or B will be silently excluded.
-const SKILL_TEMPLATES = {
-  backend: [
-    { category: "Backend",       pool: ["Node.js", "Express.js", "Python", "Django", "Django REST Framework", "PHP", "Laravel", "REST APIs", "JWT", "WebSockets", "Socket.io"] },
-    { category: "Base de datos", pool: ["MongoDB", "PostgreSQL", "MySQL", "SQLite", "Redis"] },
-    { category: "Frontend",      pool: ["React", "TypeScript", "JavaScript", "Next.js", "HTML5", "CSS3", "TailwindCSS", "Bootstrap"] },
-    { category: "DevOps",        pool: ["Docker", "Docker Compose", "Git", "GitHub", "MinIO", "Vercel", "Nginx", "CI/CD"] },
-    { category: "Herramientas",  pool: ["Postman", "VS Code", "Figma", "Jira"] },
-    { category: "Metodologías",  pool: ["Scrum", "Kanban"] },
-  ],
-  frontend: [
-    { category: "Frontend",      pool: ["React", "TypeScript", "JavaScript", "Next.js", "TailwindCSS", "Bootstrap", "HTML5", "CSS3"] },
-    { category: "Mobile",        pool: ["React Native", "Expo"] },
-    { category: "Backend",       pool: ["Node.js", "Express.js", "Python", "Django", "REST APIs", "JWT", "Socket.io"] },
-    { category: "Base de datos", pool: ["MongoDB", "PostgreSQL", "MySQL"] },
-    { category: "DevOps",        pool: ["Docker", "Git", "GitHub", "Vercel"] },
-    { category: "Herramientas",  pool: ["Postman", "VS Code", "Figma", "Jira"] },
-  ],
-  react: [
-    { category: "Frontend",      pool: ["React", "TypeScript", "JavaScript", "Next.js", "TailwindCSS", "Bootstrap", "HTML5", "CSS3"] },
-    { category: "Mobile",        pool: ["React Native", "Expo"] },
-    { category: "Backend",       pool: ["Node.js", "Express.js", "REST APIs", "JWT", "Socket.io"] },
-    { category: "Base de datos", pool: ["MongoDB", "PostgreSQL", "MySQL"] },
-    { category: "DevOps",        pool: ["Docker", "Git", "GitHub", "Vercel"] },
-    { category: "Herramientas",  pool: ["Postman", "VS Code", "Figma"] },
-  ],
-  node: [
-    { category: "Backend",       pool: ["Node.js", "Express.js", "REST APIs", "JWT", "WebSockets", "Socket.io", "Python", "Django"] },
-    { category: "Base de datos", pool: ["MongoDB", "PostgreSQL", "MySQL", "Redis"] },
-    { category: "Frontend",      pool: ["React", "TypeScript", "JavaScript", "Next.js", "HTML5", "CSS3"] },
-    { category: "DevOps",        pool: ["Docker", "Docker Compose", "Git", "GitHub", "MinIO", "CI/CD"] },
-    { category: "Herramientas",  pool: ["Postman", "VS Code", "Jira"] },
-    { category: "Metodologías",  pool: ["Scrum", "Kanban"] },
-  ],
-  python: [
-    { category: "Backend",       pool: ["Python", "Django", "Django REST Framework", "Node.js", "Express.js", "REST APIs", "JWT"] },
-    { category: "Base de datos", pool: ["PostgreSQL", "MongoDB", "MySQL", "SQLite"] },
-    { category: "Frontend",      pool: ["React", "Next.js", "TypeScript", "JavaScript", "HTML5", "CSS3", "TailwindCSS"] },
-    { category: "DevOps",        pool: ["Docker", "Docker Compose", "Git", "GitHub"] },
-    { category: "Herramientas",  pool: ["Postman", "VS Code"] },
-    { category: "Metodologías",  pool: ["Scrum", "Kanban"] },
-  ],
-  ai: [
-    { category: "AI / ML",       pool: ["Claude API", "Ollama", "Gemini", "TensorFlow.js", "face-api.js"] },
-    { category: "Backend",       pool: ["Node.js", "Express.js", "Python", "Django", "REST APIs", "JWT"] },
-    { category: "Base de datos", pool: ["MongoDB", "PostgreSQL", "MySQL"] },
-    { category: "Frontend",      pool: ["React", "TypeScript", "JavaScript", "Next.js"] },
-    { category: "DevOps",        pool: ["Docker", "Git", "GitHub"] },
-    { category: "Metodologías",  pool: ["Scrum", "Kanban"] },
-  ],
-  mobile: [
-    { category: "Mobile",        pool: ["React Native", "Expo"] },
-    { category: "Backend",       pool: ["Node.js", "Express.js", "REST APIs", "JWT", "WebSockets", "Socket.io"] },
-    { category: "Base de datos", pool: ["PostgreSQL", "MongoDB"] },
-    { category: "Frontend",      pool: ["React", "TypeScript", "JavaScript", "HTML5", "CSS3"] },
-    { category: "AI / ML",       pool: ["face-api.js", "TensorFlow.js"] },
-    { category: "DevOps",        pool: ["Docker", "Git", "GitHub"] },
-  ],
-  fullstack: [
-    { category: "Frontend",      pool: ["React", "TypeScript", "JavaScript", "Next.js", "React Native", "TailwindCSS", "Bootstrap", "HTML5", "CSS3"] },
-    { category: "Backend",       pool: ["Node.js", "Express.js", "Python", "Django", "Django REST Framework", "PHP", "REST APIs", "JWT", "Socket.io", "WebSockets"] },
-    { category: "Base de datos", pool: ["MongoDB", "PostgreSQL", "MySQL", "SQLite"] },
-    { category: "DevOps",        pool: ["Docker", "Docker Compose", "Git", "GitHub", "MinIO", "Vercel"] },
-    { category: "AI / ML",       pool: ["Claude API", "Ollama", "Gemini", "TensorFlow.js", "face-api.js"] },
-    { category: "Pagos",         pool: ["Mercado Pago"] },
-    { category: "Herramientas",  pool: ["Postman", "VS Code", "Figma", "Jira"] },
-    { category: "Metodologías",  pool: ["Scrum", "Kanban"] },
-  ],
-  automation: [
-    { category: "AI / ML",       pool: ["Claude API", "Ollama", "Gemini", "TensorFlow.js", "face-api.js"] },
-    { category: "Backend",       pool: ["Node.js", "Express.js", "Python", "Django", "REST APIs", "JWT"] },
-    { category: "Base de datos", pool: ["MongoDB", "PostgreSQL", "MySQL"] },
-    { category: "Frontend",      pool: ["React", "TypeScript", "JavaScript", "Next.js"] },
-    { category: "DevOps",        pool: ["Docker", "Git", "GitHub"] },
-  ],
-  saas: [
-    { category: "Backend",       pool: ["Node.js", "Express.js", "Python", "Django", "REST APIs", "JWT", "Socket.io"] },
-    { category: "Frontend",      pool: ["React", "TypeScript", "JavaScript", "Next.js", "TailwindCSS"] },
-    { category: "Base de datos", pool: ["MongoDB", "PostgreSQL", "MySQL"] },
-    { category: "Pagos",         pool: ["Mercado Pago"] },
-    { category: "AI / ML",       pool: ["Claude API", "Ollama", "Gemini"] },
-    { category: "DevOps",        pool: ["Docker", "Git", "GitHub"] },
-  ],
-  ecommerce: [
-    { category: "Frontend",      pool: ["React", "TypeScript", "JavaScript", "Next.js", "TailwindCSS", "Bootstrap", "HTML5", "CSS3"] },
-    { category: "Backend",       pool: ["Node.js", "Express.js", "Python", "Django", "PHP", "Laravel", "REST APIs", "JWT"] },
-    { category: "Pagos",         pool: ["Mercado Pago"] },
-    { category: "Base de datos", pool: ["MongoDB", "PostgreSQL", "MySQL"] },
-    { category: "DevOps",        pool: ["Docker", "Git", "GitHub", "Vercel"] },
-  ],
-  api: [
-    { category: "Backend",       pool: ["Node.js", "Express.js", "Python", "Django", "REST APIs", "JWT", "WebSockets", "Socket.io"] },
-    { category: "Base de datos", pool: ["MongoDB", "PostgreSQL", "MySQL", "Redis"] },
-    { category: "Frontend",      pool: ["React", "TypeScript", "JavaScript"] },
-    { category: "DevOps",        pool: ["Docker", "Docker Compose", "Git", "GitHub", "Postman"] },
-    { category: "Metodologías",  pool: ["Scrum", "Kanban"] },
-  ],
-  realtime: [
-    { category: "Backend",       pool: ["Node.js", "Express.js", "WebSockets", "Socket.io", "REST APIs", "JWT"] },
-    { category: "Base de datos", pool: ["MongoDB", "PostgreSQL", "Redis"] },
-    { category: "Frontend",      pool: ["React", "TypeScript", "JavaScript", "Next.js"] },
-    { category: "Mobile",        pool: ["React Native", "Expo"] },
-    { category: "DevOps",        pool: ["Docker", "Git", "GitHub"] },
-  ],
+// ─── FASE 3: Technology → Skills-category classification ──────────────────────
+//
+// Replaces the old SKILL_TEMPLATES (hand-curated tech pools per job identity).
+// That approach silently dropped verified (A/B) technologies whenever a job
+// identity's pool forgot to list them (e.g. "python" pool never listed MinIO,
+// Socket.io, GitHub...). This map instead classifies EVERY known technology by
+// its own nature, independent of job identity. buildAdaptiveSkills() then
+// COLLECTs the full evidence-backed set and only varies the *category order*
+// (and item order within a category) per job identity — nothing is ever
+// silently excluded because it wasn't in a hand-picked list.
+//
+// Canonical category labels (kept in Spanish to match existing CV copy):
+//   "Frontend", "Backend", "Base de datos", "DevOps / Cloud", "Mobile",
+//   "AI / ML", "Testing", "Herramientas", "APIs / Integración", "Pagos",
+//   "Metodologías", "Stack adicional" (fallback — never a silent drop)
+const TECH_CATEGORY_MAP = {
+  // Frontend
+  javascript: "Frontend", typescript: "Frontend", html5: "Frontend", css3: "Frontend",
+  react: "Frontend", nextjs: "Frontend", tailwind: "Frontend", bootstrap: "Frontend",
+
+  // Backend
+  php: "Backend", python: "Backend", nodejs: "Backend", expressjs: "Backend",
+  django: "Backend", "django rest framework": "Backend", laravel: "Backend",
+  nestjs: "Backend", fastapi: "Backend", flask: "Backend", jwt: "Backend",
+  websocket: "Backend", socketio: "Backend", sql: "Base de datos",
+
+  // Database
+  mongodb: "Base de datos", postgresql: "Base de datos", mysql: "Base de datos",
+  sqlite: "Base de datos", redis: "Base de datos", dynamodb: "Base de datos",
+  cassandra: "Base de datos", elasticsearch: "Base de datos",
+  athena: "Base de datos", trino: "Base de datos", presto: "Base de datos",
+  bigquery: "Base de datos", "spark sql": "Base de datos", spark: "Base de datos",
+
+  // DevOps / Cloud
+  docker: "DevOps / Cloud", "docker compose": "DevOps / Cloud", git: "DevOps / Cloud",
+  github: "DevOps / Cloud", minio: "DevOps / Cloud", vercel: "DevOps / Cloud",
+  nginx: "DevOps / Cloud", cicd: "DevOps / Cloud", aws: "DevOps / Cloud",
+  "google cloud": "DevOps / Cloud", azure: "DevOps / Cloud", linux: "DevOps / Cloud",
+  kubernetes: "DevOps / Cloud", terraform: "DevOps / Cloud", s3: "DevOps / Cloud",
+  cloudinary: "DevOps / Cloud", airflow: "DevOps / Cloud", dagster: "DevOps / Cloud",
+  prefect: "DevOps / Cloud", "step functions": "DevOps / Cloud",
+  bash: "DevOps / Cloud", makefile: "DevOps / Cloud", makefiles: "DevOps / Cloud",
+
+  // Mobile
+  "react native": "Mobile", expo: "Mobile",
+
+  // AI / ML
+  claude: "AI / ML", ollama: "AI / ML", gemini: "AI / ML", "tensorflowjs": "AI / ML",
+  "face-api": "AI / ML", "hugging face": "AI / ML", bedrock: "AI / ML",
+
+  // Testing (no verified evidence today — populated only via keyword recovery)
+  jest: "Testing", cypress: "Testing", playwright: "Testing", vitest: "Testing",
+  mocha: "Testing", selenium: "Testing", pytest: "Testing",
+
+  // Tools
+  postman: "Herramientas", "vs code": "Herramientas", figma: "Herramientas",
+  jira: "Herramientas", poetry: "Herramientas", uv: "Herramientas", nx: "Herramientas",
+
+  // APIs / Integration
+  "rest api": "APIs / Integración", graphql: "APIs / Integración", oauth: "APIs / Integración",
+
+  // Payments
+  "mercado pago": "Pagos",
+
+  // Methodologies
+  scrum: "Metodologías", kanban: "Metodologías",
+};
+
+// Order in which categories are shown, per detected job identity.
+// Categories with no items are simply skipped — nothing is padded or invented.
+const CATEGORY_ORDER_BY_IDENTITY = {
+  fullstack:  ["Frontend", "Backend", "Base de datos", "DevOps / Cloud", "AI / ML", "APIs / Integración", "Pagos", "Mobile", "Testing", "Herramientas", "Metodologías", "Stack adicional"],
+  backend:    ["Backend", "Base de datos", "APIs / Integración", "DevOps / Cloud", "Frontend", "Testing", "Herramientas", "Metodologías", "Stack adicional"],
+  frontend:   ["Frontend", "APIs / Integración", "Backend", "Base de datos", "Testing", "Herramientas", "Mobile", "Metodologías", "Stack adicional"],
+  react:      ["Frontend", "APIs / Integración", "Backend", "Base de datos", "Testing", "Herramientas", "Mobile", "Metodologías", "Stack adicional"],
+  node:       ["Backend", "Base de datos", "APIs / Integración", "Frontend", "DevOps / Cloud", "Testing", "Herramientas", "Metodologías", "Stack adicional"],
+  python:     ["Backend", "Base de datos", "APIs / Integración", "DevOps / Cloud", "Frontend", "Testing", "Herramientas", "Metodologías", "Stack adicional"],
+  data:       ["Backend", "Base de datos", "Frontend", "DevOps / Cloud", "APIs / Integración", "Herramientas", "Testing", "Metodologías", "Stack adicional"],
+  devops:     ["DevOps / Cloud", "Backend", "Base de datos", "Herramientas", "APIs / Integración", "Testing", "Metodologías", "Stack adicional"],
+  cloud:      ["DevOps / Cloud", "Backend", "Base de datos", "Herramientas", "APIs / Integración", "Testing", "Metodologías", "Stack adicional"],
+  mobile:     ["Mobile", "Frontend", "Backend", "AI / ML", "Base de datos", "DevOps / Cloud", "Herramientas", "Metodologías", "Stack adicional"],
+  ai:         ["AI / ML", "Backend", "APIs / Integración", "Base de datos", "Frontend", "DevOps / Cloud", "Herramientas", "Metodologías", "Stack adicional"],
+  automation: ["AI / ML", "Backend", "APIs / Integración", "Base de datos", "Herramientas", "DevOps / Cloud", "Frontend", "Metodologías", "Stack adicional"],
+  saas:       ["Backend", "Frontend", "Base de datos", "Pagos", "AI / ML", "DevOps / Cloud", "APIs / Integración", "Herramientas", "Metodologías", "Stack adicional"],
+  ecommerce:  ["Frontend", "Backend", "Pagos", "Base de datos", "DevOps / Cloud", "Herramientas", "Metodologías", "Stack adicional"],
+  api:        ["Backend", "APIs / Integración", "Base de datos", "DevOps / Cloud", "Herramientas", "Frontend", "Testing", "Metodologías", "Stack adicional"],
+  realtime:   ["Backend", "APIs / Integración", "Base de datos", "Frontend", "Mobile", "DevOps / Cloud", "Herramientas", "Metodologías", "Stack adicional"],
+};
+
+// ─── FASE 3: Evidence overrides ─────────────────────────────────────────────
+//
+// masterProfile.js remains the untouched source of truth. This override exists
+// ONLY for skills-placement and requirement-matching decisions in THIS service,
+// per explicit product direction: AWS may be shown as a normal, includable
+// technology (correctly bucketed under "DevOps / Cloud") instead of being
+// hidden the way category-C ("learning") technologies normally are.
+// It does NOT unlock achievement/experience generation — achievements are
+// always sourced verbatim from MASTER_PROFILE.experience/.projects, never
+// synthesized from this override, so "no production AWS experience" still holds.
+const EVIDENCE_OVERRIDES = { aws: "B" };
+
+function getEffectiveEvidence(techName) {
+  const tech = getTechnologyEvidence(techName);
+  if (!tech) return null;
+  const override = EVIDENCE_OVERRIDES[tech.normalized];
+  return override ? { ...tech, category: override, _overridden: true } : tech;
+}
+
+// Technologies with no master-profile record that are neverthless recognizably
+// close to something with A/B evidence. Used by buildRequirementMatrix() to
+// classify as TRANSFERABLE instead of a flat UNVERIFIED/GAP.
+const TRANSFERABLE_MAP = {
+  fastapi: ["django rest framework", "django", "python"],
+  flask:   ["django", "python"],
+  dynamodb: ["mongodb"],
+  bash:    ["linux"],
+  makefile: ["linux"],
+  makefiles: ["linux"],
+  celery:  ["node.js"],
 };
 
 // Achievement relevance keywords per job type — used to rank experience bullets
@@ -250,6 +263,9 @@ const TYPE_ACHIEVEMENT_KEYWORDS = {
   ecommerce:  ["pago", "mercado pago", "webhook", "transaccional", "checkout", "carrito", "productos"],
   api:        ["api", "rest", "endpoint", "autenticación", "jwt", "postman"],
   fullstack:  ["full stack", "frontend", "backend", "api", "react", "node", "implementé", "desarrollé", "diseñé", "construí", "arquitecturé"],
+  data:       ["base de datos", "datos", "postgresql", "mongodb", "mysql", "consulta", "rendimiento", "almacenamiento", "minio", "s3", "compresión", "versionado", "documentos"],
+  devops:     ["docker", "contenericé", "contenerizé", "configuré", "despliegue", "infraestructura", "almacenamiento", "minio", "seguro"],
+  cloud:      ["minio", "s3", "almacenamiento", "urls firmadas", "storage", "compresión"],
 };
 
 export class ATSOptimizerService {
@@ -285,6 +301,22 @@ export class ATSOptimizerService {
       .replace(/[.\-_]/g, "")
       .replace(/\s+/g, " ")
       .trim();
+  }
+
+  // ─── FASE 3: Shared skill-category classifier ────────────────────────────────
+  //
+  // Used by both buildAdaptiveSkills() (collecting from the master profile) and
+  // recoverMissingKeywords() (placing JD keywords not yet in the CV). Keeping
+  // this in one place is what guarantees a technology lands in the same
+  // category whether it came from the profile or from keyword recovery.
+
+  _classifySkillCategory(normalizedName) {
+    if (TECH_CATEGORY_MAP[normalizedName]) return TECH_CATEGORY_MAP[normalizedName];
+    const FALLBACK = { frontend: "Frontend", backend: "Backend", database: "Base de datos", devops: "DevOps / Cloud", mobile: "Mobile" };
+    for (const { type, keys } of ITEM_SIGNALS) {
+      if (keys.includes(normalizedName)) return FALLBACK[type] || "Stack adicional";
+    }
+    return "Stack adicional";
   }
 
   _sortByRelevance(items, jdKeywords) {
@@ -549,6 +581,38 @@ Devuelve SOLO JSON válido:
         techSigs:  ["socketio", "websocket", "pusher", "firebase", "ably"],
         weight:    1.0,
       },
+      data: {
+        roleKws:   [
+          "data engineer", "data engineering", "analytics engineer",
+          "data platform", "data pipeline",
+        ],
+        techSigs:  [
+          "etl", "elt", "data lake", "data warehouse", "athena", "trino", "presto",
+          "bigquery", "spark", "sparksql", "airflow", "dagster", "prefect",
+          "step functions", "dag", "orchestration", "large datasets",
+          "performance-sensitive", "sql", "postgresql", "advanced sql",
+        ],
+        weight:    1.15,
+      },
+      devops: {
+        roleKws:   [
+          "devops engineer", "devops developer", "infrastructure engineer",
+          "platform engineer", "site reliability", "sre",
+        ],
+        techSigs:  [
+          "docker", "kubernetes", "k8s", "terraform", "ansible", "jenkins",
+          "cicd", "ci cd", "helm", "argocd", "prometheus", "grafana",
+        ],
+        weight:    1.1,
+      },
+      cloud: {
+        roleKws:   ["cloud engineer", "cloud developer", "cloud architect"],
+        techSigs:  [
+          "aws", "gcp", "azure", "lambda", "ec2", "s3", "rds", "cloudfront",
+          "serverless", "cloud run", "cloud functions",
+        ],
+        weight:    1.0,
+      },
     };
 
     const roleStr = (jdAnalysis.role || "").toLowerCase();
@@ -610,7 +674,7 @@ Devuelve SOLO JSON válido:
 
   classifyKeywords(jdKeywords) {
     return (jdKeywords || []).map((kw) => {
-      const tech = getTechnologyEvidence(kw);
+      const tech = getEffectiveEvidence(kw);
       if (!tech) {
         return { keyword: kw, status: "unknown", evidence: null, action: "exclude" };
       }
@@ -624,60 +688,159 @@ Devuelve SOLO JSON válido:
     });
   }
 
-  // ─── FASE 2: Adaptive Skill Categories ───────────────────────────────────────
+  // ─── FASE 3: Adaptive Skill Categories (COLLECT → CLASSIFY → DEDUPLICATE → SORT) ─
   //
-  // Builds skill categories ordered and populated for the detected job type.
-  // Only technologies with evidence A or B are included.
-  // Items within each category are sorted: JD matches first, then A before B.
+  // Rewritten to stop losing verified technologies (see TECH_CATEGORY_MAP comment
+  // above for the root-cause bug this replaces).
+  //
+  //   COLLECT      — every A/B technology in the master profile, always. Plus any
+  //                   C-tier technology that the JD actually mentions (so AWS/Redis/
+  //                   etc. show up when relevant, but we don't pad the CV with every
+  //                   "currently learning" tag on every job).
+  //   CLASSIFY     — each technology goes to its natural category via TECH_CATEGORY_MAP.
+  //                   Anything unmapped still gets a category via ITEM_SIGNALS, and if
+  //                   even that fails it goes to "Stack adicional" — it is NEVER dropped.
+  //   DEDUPLICATE  — one entry per technology (normalized + alias-aware).
+  //   SORT         — categories ordered per job identity (CATEGORY_ORDER_BY_IDENTITY);
+  //                   items within a category ordered by JD relevance, then evidence
+  //                   tier (A > B > C), preserving the master-profile order as tiebreak.
 
   buildAdaptiveSkills(jobIdentity, jdKeywords) {
-    const template = SKILL_TEMPLATES[jobIdentity.primary] || SKILL_TEMPLATES.fullstack;
-    const jdNorms  = (jdKeywords || []).map((k) => this._normalize(k));
-    const usedNames = new Set();
+    const jdNorms = (jdKeywords || []).map((k) => this._normalize(k));
 
-    const _jdScore = (name) => {
-      const norm = this._normalize(name);
-      return jdNorms.some((kw) => norm === kw || norm.includes(kw) || kw.includes(norm) ||
-        (norm.length >= 4 && kw.length >= 4 && norm.slice(0, 4) === kw.slice(0, 4))) ? 1 : 0;
-    };
+    const jdScoreFor = (normName) =>
+      jdNorms.some((kw) => normName === kw || normName.includes(kw) || kw.includes(normName) ||
+        (normName.length >= 4 && kw.length >= 4 && normName.slice(0, 4) === kw.slice(0, 4))) ? 1 : 0;
 
-    const categories = template.map(({ category, pool }) => {
-      const items = pool
-        .filter((name) => !usedNames.has(name))
-        .map((name) => {
-          const tech = getTechnologyEvidence(name);
-          if (!tech || (tech.category !== "A" && tech.category !== "B")) return null;
-          return {
-            name,
-            evidenceScore: tech.category === "A" ? 2 : 1,
-            jdScore:       _jdScore(name),
-          };
-        })
-        .filter(Boolean)
-        .sort((a, b) => {
-          // JD relevance first, then A before B
-          if (b.jdScore !== a.jdScore) return b.jdScore - a.jdScore;
-          return b.evidenceScore - a.evidenceScore;
-        })
-        .map(({ name }) => { usedNames.add(name); return name; });
+    const categoryFor = (tech) => this._classifySkillCategory(tech.normalized);
 
-      return { category, items };
-    }).filter((sg) => sg.items.length > 0);
-
-    // If JD requires C-level techs that aren't covered, add a transparent learning section
-    const cRequired = (jdKeywords || [])
-      .map((kw) => getTechnologyEvidence(kw))
-      .filter((t) => t && t.category === "C" && !usedNames.has(t.name))
-      .map((t) => t.name);
-
-    if (cRequired.length > 0) {
-      categories.push({
-        category: "Conocimientos en desarrollo",
-        items: [...new Set(cRequired)],
-      });
+    // ── COLLECT ──────────────────────────────────────────────────────────────
+    const collected = [];
+    for (const tech of TECHNOLOGY_EVIDENCE_MATRIX) {
+      const effective = getEffectiveEvidence(tech.name);
+      if (effective.category === "A" || effective.category === "B") {
+        collected.push({ name: tech.name, normalized: tech.normalized, evidence: effective.category, category: categoryFor(tech) });
+      } else if (effective.category === "C" && jdScoreFor(tech.normalized)) {
+        // Only bring in learning-tier tech when the JD actually calls for it —
+        // keeps the CV from listing every "currently learning" tag on every job.
+        collected.push({ name: tech.name, normalized: tech.normalized, evidence: "C", category: categoryFor(tech) });
+      }
     }
 
+    // ── CLASSIFY + DEDUPLICATE ──────────────────────────────────────────────
+    const byCategory = new Map(); // category -> Map(normalized -> item)
+    for (const item of collected) {
+      if (!byCategory.has(item.category)) byCategory.set(item.category, new Map());
+      byCategory.get(item.category).set(item.normalized, item);
+    }
+
+    // ── SORT ─────────────────────────────────────────────────────────────────
+    const EVIDENCE_SCORE = { A: 3, B: 2, C: 1 };
+    const order = CATEGORY_ORDER_BY_IDENTITY[jobIdentity.primary]
+      || CATEGORY_ORDER_BY_IDENTITY.fullstack;
+    const extraCategories = [...byCategory.keys()].filter((c) => !order.includes(c));
+    const fullOrder = [...order, ...extraCategories];
+
+    const categories = fullOrder
+      .map((category) => {
+        const items = byCategory.get(category);
+        if (!items) return null;
+        const sorted = [...items.values()]
+          .sort((a, b) => {
+            const jdA = jdScoreFor(a.normalized);
+            const jdB = jdScoreFor(b.normalized);
+            if (jdB !== jdA) return jdB - jdA;
+            return (EVIDENCE_SCORE[b.evidence] || 0) - (EVIDENCE_SCORE[a.evidence] || 0);
+          })
+          .map((i) => i.name);
+        return { category, items: sorted };
+      })
+      .filter(Boolean);
+
     return categories;
+  }
+
+  // ─── FASE 3: Requirement Matrix ──────────────────────────────────────────────
+  //
+  // Classifies each JD requirement against the master profile into one of:
+  //   DIRECT_MATCH   — exact tech name match with A (professional) or B (hands-on) evidence
+  //   PARTIAL_MATCH  — fuzzy/alias match with A or B evidence (name isn't an exact hit)
+  //   TRANSFERABLE   — no matrix record, but a related A/B technology exists (TRANSFERABLE_MAP)
+  //   LEARNING       — matrix record with C evidence (currently learning / familiarity)
+  //   GAP            — matrix record with D evidence (assessed, insufficient evidence)
+  //   UNVERIFIED     — no matrix record and nothing transferable found
+  //
+  // This is decision-support metadata for generation (project/experience/skill
+  // ordering). It is NEVER used to fabricate achievements, and it is not
+  // rendered in the CV itself — only exposed via architecture.requirementMatrix.
+
+  buildRequirementMatrix(jdAnalysis) {
+    const items = [...new Set([
+      ...(jdAnalysis.requiredSkills || []).map((k) => ({ text: k, priority: "must-have" })),
+      ...(jdAnalysis.niceToHaveSkills || []).map((k) => ({ text: k, priority: "nice-to-have" })),
+    ].map((o) => JSON.stringify(o)))].map((s) => JSON.parse(s));
+
+    // Add any remaining keywords not already covered, as unprioritized requirements
+    const covered = new Set(items.map((i) => this._normalize(i.text)));
+    for (const kw of (jdAnalysis.keywords || [])) {
+      const norm = this._normalize(kw);
+      if (!covered.has(norm)) { items.push({ text: kw, priority: "keyword" }); covered.add(norm); }
+    }
+
+    return items.map(({ text, priority }) => {
+      const norm = this._normalize(text);
+      const exactTech = getEffectiveEvidence(text);
+
+      if (exactTech) {
+        const isExactName = this._normalize(exactTech.name) === norm;
+        if (exactTech.category === "A" || exactTech.category === "B") {
+          return {
+            requirement: text, priority,
+            status: isExactName ? "DIRECT_MATCH" : "PARTIAL_MATCH",
+            subtype: exactTech.category === "A" ? "PROFESSIONAL" : "HANDS_ON",
+            matchedTech: exactTech.name,
+          };
+        }
+        if (exactTech.category === "C") {
+          return { requirement: text, priority, status: "LEARNING", matchedTech: exactTech.name };
+        }
+        // D — known to the profile, assessed as insufficient evidence
+        return { requirement: text, priority, status: "GAP", matchedTech: exactTech.name };
+      }
+
+      // No direct record — check transferable adjacency
+      const transferCandidates = TRANSFERABLE_MAP[norm] || [];
+      for (const candidateName of transferCandidates) {
+        const candidate = getEffectiveEvidence(candidateName);
+        if (candidate && (candidate.category === "A" || candidate.category === "B")) {
+          return {
+            requirement: text, priority, status: "TRANSFERABLE",
+            matchedTech: candidate.name,
+            note: `No direct evidence for "${text}", but related experience with ${candidate.name}`,
+          };
+        }
+      }
+
+      return { requirement: text, priority, status: "UNVERIFIED", matchedTech: null };
+    });
+  }
+
+  // Groups a requirement matrix into the gapAnalysis shape used internally
+  // (architecture.gapAnalysis). Not rendered in the CV — decision-support only.
+  buildGapAnalysis(requirementMatrix) {
+    const g = {
+      directMatches: [], partialMatches: [], transferableSkills: [],
+      learningMatches: [], gaps: [], unverified: [],
+    };
+    for (const r of requirementMatrix) {
+      if (r.status === "DIRECT_MATCH") g.directMatches.push(r);
+      else if (r.status === "PARTIAL_MATCH") g.partialMatches.push(r);
+      else if (r.status === "TRANSFERABLE") g.transferableSkills.push(r);
+      else if (r.status === "LEARNING") g.learningMatches.push(r);
+      else if (r.status === "GAP") g.gaps.push(r);
+      else g.unverified.push(r);
+    }
+    return g;
   }
 
   // ─── FASE 2: Adaptive Experience ─────────────────────────────────────────────
@@ -742,13 +905,14 @@ Devuelve SOLO JSON válido:
   //  - municipal-works-system → excluded from projects (already in Municipalidad experience)
   //  - Bullet count: rank 0 → 4 bullets, rank 1-2 → 3 bullets, rank 3+ → 2 bullets
 
-  buildAdaptiveProjects(jobIdentity, jdKeywords, maxCount) {
+  buildAdaptiveProjects(jobIdentity, jdKeywords, maxCount, jdAnalysis) {
     const { primary, secondary } = jobIdentity;
 
     const PROJECT_COUNT = {
       fullstack: 5, backend: 4, frontend: 4, react: 4,
       node: 4, python: 4, ai: 4, mobile: 3,
       automation: 4, saas: 4, ecommerce: 3, api: 4, realtime: 3,
+      data: 4, devops: 3, cloud: 3,
     };
     const max = maxCount ?? (PROJECT_COUNT[primary] ?? 4);
 
@@ -769,12 +933,26 @@ Devuelve SOLO JSON válido:
       }
     }
 
-    // Score by tech overlap with JD keywords
-    const jdNorms = (jdKeywords || []).map((k) => this._normalize(k));
+    // Score by tech overlap with JD keywords — must-have requirements weigh more
+    // than nice-to-haves, which weigh more than generic extracted keywords.
+    const jdNorms   = (jdKeywords || []).map((k) => this._normalize(k));
+    const mustNorms = (jdAnalysis?.requiredSkills   || []).map((k) => this._normalize(k));
+    const niceNorms = (jdAnalysis?.niceToHaveSkills || []).map((k) => this._normalize(k));
+    // Whole-word match — a plain substring check would count "sql" as a hit
+    // inside "postgresql", inflating scores for unrelated projects.
+    const wordHit = (text, kw) => {
+      if (!kw) return false;
+      const esc = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return new RegExp(`\\b${esc}\\b`, "i").test(text);
+    };
     const jdScore = (project) => {
       const text = [project.name, project.description, ...project.technologies, ...project.achievements]
         .join(" ").toLowerCase();
-      return jdNorms.reduce((s, kw) => s + (text.includes(kw) ? 1 : 0), 0);
+      let score = 0;
+      for (const kw of jdNorms)   if (wordHit(text, kw)) score += 1;
+      for (const kw of niceNorms) if (wordHit(text, kw)) score += 1;
+      for (const kw of mustNorms) if (wordHit(text, kw)) score += 2;
+      return score;
     };
 
     selected = selected
@@ -808,6 +986,23 @@ Devuelve SOLO JSON válido:
       if (variants[type]) return variants[type];
     }
     return variants.default;
+  }
+
+  // ─── FASE 3: Title Variant Selection ─────────────────────────────────────────
+  //
+  // Uses MASTER_PROFILE.positioning.titleVariants (existed but was never wired
+  // into generation). Falls back to the candidate's real mainTitle — never
+  // invents a title outside the variants the profile already defines.
+
+  _selectTitleVariant(jobIdentity) {
+    const { primary, secondary } = jobIdentity;
+    const positioning = MASTER_PROFILE.positioning || {};
+    const variants = positioning.titleVariants || {};
+    if (variants[primary]) return variants[primary];
+    for (const type of secondary) {
+      if (variants[type]) return variants[type];
+    }
+    return positioning.mainTitle || variants.fullstack || "Full Stack Developer";
   }
 
   // ─── FASE 2: Adaptive Summary Generation ─────────────────────────────────────
@@ -910,25 +1105,29 @@ Resumen:`;
       const jobIdentity = this.detectJobIdentity(jobDescription, jdAnalysis);
       console.log(`[optimizeCV] Job identity: ${jobIdentity.primary} (secondary: ${jobIdentity.secondary.join(",")})`);
 
-      // ── 2. Classify JD keywords ───────────────────────────────────────────────
+      // ── 2. Classify JD keywords + build requirement matrix / gap analysis ─────
       const keywordClassification = this.classifyKeywords(jdAnalysis.keywords || []);
+      const requirementMatrix     = this.buildRequirementMatrix(jdAnalysis);
+      const gapAnalysis           = this.buildGapAnalysis(requirementMatrix);
 
       // ── 3. Build adaptive components from masterProfile ───────────────────────
       const adaptiveExperience = this.buildAdaptiveExperience(jobIdentity, jdAnalysis.keywords);
-      const adaptiveProjects   = this.buildAdaptiveProjects(jobIdentity, jdAnalysis.keywords);
+      const adaptiveProjects   = this.buildAdaptiveProjects(jobIdentity, jdAnalysis.keywords, undefined, jdAnalysis);
       const adaptiveSkills     = this.buildAdaptiveSkills(jobIdentity, jdAnalysis.keywords);
 
-      // ── 4. Generate adapted summary ───────────────────────────────────────────
+      // ── 4. Generate adapted summary + select title variant ───────────────────
       const baseSummary = this._selectSummaryVariant(jobIdentity);
       const summary     = await this._generateAdaptiveSummary(
         jobDescription, jdAnalysis, jobIdentity, baseSummary
       );
+      const title = this._selectTitleVariant(jobIdentity);
 
       // ── 5. Assemble personal info (masterProfile as authority) ─────────────────
       // Preserve phone from the uploaded CV if available (not stored in masterProfile)
       const uploadedPhone = parsedCV?.personalInfo?.phone || "";
       const personalInfo  = {
         ...MASTER_PROFILE.personalInfo,
+        title,
         phone: uploadedPhone,
       };
 
@@ -988,6 +1187,9 @@ Resumen:`;
           keywordsSupported:    keywordClassification.filter((k) => k.action === "include").map((k) => k.keyword),
           keywordsLearning:     keywordClassification.filter((k) => k.status === "learning").map((k) => k.keyword),
           keywordsExcluded:     keywordClassification.filter((k) => k.action === "exclude").map((k) => k.keyword),
+          // Decision-support only — NOT rendered in the CV/PDF. See buildRequirementMatrix().
+          requirementMatrix,
+          gapAnalysis,
         },
       };
 
@@ -1506,6 +1708,27 @@ Resumen:`;
       warnings.push(`EVIDENCE_VIOLATION: D-level techs in main skills: ${dLevelInMain.join(", ")}`);
     }
 
+    // 7b. Skills integrity — every A/B technology in the master profile must be
+    // present somewhere in skills[]. Catches silent tech loss (the root cause
+    // behind the old SKILL_TEMPLATES pools) if it were ever reintroduced.
+    const outSkillNorms = new Set(
+      (out.skills || []).flatMap((sg) => sg.items || []).map((i) => this._normalize(i))
+    );
+    const expectedAB = TECHNOLOGY_EVIDENCE_MATRIX.filter((t) => {
+      const eff = getEffectiveEvidence(t.name);
+      return eff.category === "A" || eff.category === "B";
+    });
+    // Compare using this._normalize(t.name) (NOT t.normalized) — the matrix's
+    // hand-authored "normalized" field isn't always identical to what
+    // _normalize() computes (e.g. "REST APIs" is authored as "rest api"),
+    // while outSkillNorms is built with _normalize() on the rendered item text.
+    const missingFromSkills = expectedAB
+      .filter((t) => !outSkillNorms.has(this._normalize(t.name)))
+      .map((t) => t.name);
+    if (missingFromSkills.length > 0) {
+      warnings.push(`SKILLS_INTEGRITY: verified technologies missing from skills[]: ${missingFromSkills.join(", ")}`);
+    }
+
     // 8. Personal info completeness
     const pi = out.personalInfo || {};
     if (!pi.email)   warnings.push("MISSING_FIELD: personalInfo.email is empty");
@@ -1529,6 +1752,69 @@ Resumen:`;
 
     const valid = warnings.filter((w) => !w.startsWith("MISSING_FIELD: personalInfo.linkedin")).length === 0;
     return { valid, warnings, fixes, cv: out };
+  }
+
+  // ─── FASE 3: recoverMissingKeywords (unified) ─────────────────────────────────
+  //
+  // Merges recoverMissingSupportedKeywords() and the legacy injectMissingKeywords()
+  // into one function, per explicit direction: keyword recovery must keep working
+  // for keywords the master profile can't verify — the goal is "flag for manual
+  // review", not "silently reject". At the same time, recovered items are never
+  // used to fabricate achievements; they only ever land in Skills.
+  //
+  // Placement/confidence by evidence tier:
+  //   A/B  — verified/hands-on. Inserted into the correct category normally.
+  //   C    — learning-tier (e.g. Redis, GraphQL) or AWS (see EVIDENCE_OVERRIDES).
+  //          Inserted into the correct category — not hidden — but sorted after
+  //          A/B items so the strongest evidence still leads each line.
+  //   D / unknown — no verified evidence at all (e.g. FastAPI is D; Bash, Makefiles,
+  //          Athena, Poetry aren't in the matrix). Still inserted into the best-
+  //          guess category (or "Stack adicional" if it can't be classified) for
+  //          the user to review and remove manually — never omitted outright.
+
+  recoverMissingKeywords(optimizedCV, jdKeywords) {
+    if (!jdKeywords?.length) return optimizedCV;
+
+    const skills = (optimizedCV.skills || []).map((sg) => ({ ...sg, items: [...(sg.items || [])] }));
+    const categoryIndex = new Map(skills.map((sg, i) => [sg.category, i]));
+
+    const existingNorm = new Set(
+      skills.flatMap((sg) =>
+        (sg.items || []).flatMap((item) => {
+          const norm = this._normalize(item);
+          return [norm, ...(ALIAS_MAP.get(norm) || [])];
+        })
+      )
+    );
+
+    for (const kw of jdKeywords) {
+      const kwNorm = this._normalize(kw);
+      if (!kwNorm || kwNorm.split(" ").length > 3) continue;
+
+      // Skip if already present (exact, alias, or fuzzy prefix match)
+      if (existingNorm.has(kwNorm) || (ALIAS_MAP.get(kwNorm) || []).some((a) => existingNorm.has(a))) continue;
+      if (kwNorm.length >= 4) {
+        const prefix = kwNorm.slice(0, 4);
+        if ([...existingNorm].some((e) => e.length >= 4 && (e.startsWith(prefix) || kwNorm.startsWith(e.slice(0, 4))))) continue;
+      }
+
+      const tech = getEffectiveEvidence(kw);
+      const category = this._classifySkillCategory(tech ? tech.normalized : kwNorm);
+      const label = this._prettifyKeyword(kw);
+
+      let idx = categoryIndex.get(category);
+      if (idx === undefined) {
+        skills.push({ category, items: [] });
+        idx = skills.length - 1;
+        categoryIndex.set(category, idx);
+      }
+      if (!skills[idx].items.some((i) => this._normalize(i) === kwNorm)) {
+        skills[idx].items.push(label);
+        existingNorm.add(kwNorm);
+      }
+    }
+
+    return { ...optimizedCV, skills };
   }
 
   // ─── FASE 2: recoverMissingSupportedKeywords ──────────────────────────────────

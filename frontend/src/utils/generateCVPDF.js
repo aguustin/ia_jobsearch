@@ -145,6 +145,14 @@ export function generateCVPDF(optimizedCV, filename = "CV_ATS_optimizado.pdf", p
     nameLines.forEach((line) => { doc.text(line, MARGIN, y); y += 8; });
   }
 
+  if (pi.title) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(...C_SECONDARY);
+    const titleLines = doc.splitTextToSize(pi.title, textW);
+    titleLines.forEach((line) => { doc.text(line, MARGIN, y); y += 5.5; });
+  }
+
   const contactParts = [pi.email, pi.phone, pi.location, pi.linkedin, pi.github].filter(Boolean);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
@@ -362,7 +370,7 @@ export function generateCVPDF(optimizedCV, filename = "CV_ATS_optimizado.pdf", p
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
         doc.setTextColor(...C_PRIMARY);
-        doc.textWithLink("ver certificado ↗", MARGIN + labelW + levelW, y, { url: l.certificateUrl });
+        doc.textWithLink("Ver certificado", MARGIN + labelW + levelW, y, { url: l.certificateUrl });
         doc.setTextColor(...C_TEXT);
       }
       y += LINE_GAP;
@@ -401,7 +409,7 @@ export function generateCVPDF(optimizedCV, filename = "CV_ATS_optimizado.pdf", p
           doc.setFont("helvetica", "normal");
           doc.setFontSize(8);
           doc.setTextColor(...C_PRIMARY);
-          doc.textWithLink("ver certificado ↗", MARGIN + issuerW, y, { url: c.url });
+          doc.textWithLink("Ver certificado", MARGIN + issuerW, y, { url: c.url });
           doc.setTextColor(...C_TEXT);
         }
         y += LINE_GAP;
