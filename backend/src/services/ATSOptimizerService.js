@@ -118,6 +118,41 @@ for (const group of ALIAS_GROUPS) {
   }
 }
 
+// ─── FASE 4: Non-technology terms ──────────────────────────────────────────────
+//
+// The JD keyword extractor (regex + Claude) picks up engineering PRACTICES and
+// responsibilities, not just technologies — e.g. TECH_TERMS above includes
+// "code review" and "pair programming" so they can be recognized as JD signals
+// at all. But a practice is not a skill-list item: "Code Review" sitting next
+// to "React" in Skills reads as if it were a tool. These must never be
+// recovered into Skills — they can only appear in Experience, and only when
+// the master profile already documents that achievement (never synthesized).
+// ─── FASE 4: Dedicated section for RECOVERABLE (unverified) keywords ──────────
+//
+// Per explicit direction: a JD keyword that helps ATS matching but has no
+// verified experience behind it should be visible for matching, but NEVER
+// blended into the same category list as verified professional/hands-on tech
+// (e.g. "Redux" next to "React, TypeScript" in Frontend reads as if Redux were
+// equally proven). All RECOVERABLE-level keywords go here instead — one flat,
+// clearly-labeled list, same spirit as the "TECHNICAL KEYWORDS" example.
+// VERIFIED (A/B, incl. the AWS override) keywords still land in their natural
+// per-domain category, same as before.
+const RECOVERABLE_CATEGORY = "Tecnologías relevantes";
+
+// A CV listing a dozen+ unverified technologies reads as padding, not signal.
+// Cap the bucket after sorting by priority (must_have > nice_to_have > secondary)
+// so the JD's actual requirements survive the cut, not whatever happened to be
+// processed first.
+const MAX_RECOVERABLE_ITEMS = 8;
+
+const NON_TECH_TERMS = new Set([
+  "code review", "pair programming", "test driven", "sprint planning",
+  "stakeholder communication", "architectural discussions", "debugging",
+  "mentoring", "quick fix", "technical opinion", "critical judgment",
+  "clean architecture", "hexagonal", "solid", "event-driven", "microservices",
+  "lean", "agile", "devops",
+]);
+
 // Category signal detector — used by both injectMissingKeywords and recoverMissingSupportedKeywords
 const ITEM_SIGNALS = [
   { type: "frontend", keys: ["react", "vue", "angular", "svelte", "html", "css", "javascript", "typescript", "nextjs", "nuxtjs", "sass", "scss", "redux", "webpack", "vite", "jquery", "bootstrap", "tailwind", "gatsby", "remix", "astro"] },
@@ -139,9 +174,10 @@ const ITEM_SIGNALS = [
 // silently excluded because it wasn't in a hand-picked list.
 //
 // Canonical category labels (kept in Spanish to match existing CV copy):
-//   "Frontend", "Backend", "Base de datos", "DevOps / Cloud", "Mobile",
-//   "AI / ML", "Testing", "Herramientas", "APIs / Integración", "Pagos",
-//   "Metodologías", "Stack adicional" (fallback — never a silent drop)
+//   "Frontend", "Backend", "Base de datos", "DevOps / Cloud", "Storage",
+//   "Seguridad", "Mobile", "AI / ML", "Testing", "Herramientas",
+//   "APIs / Integración", "Pagos", "Metodologías",
+//   "Stack adicional" (fallback — never a silent drop)
 const TECH_CATEGORY_MAP = {
   // Frontend
   javascript: "Frontend", typescript: "Frontend", html5: "Frontend", css3: "Frontend",
@@ -150,8 +186,11 @@ const TECH_CATEGORY_MAP = {
   // Backend
   php: "Backend", python: "Backend", nodejs: "Backend", expressjs: "Backend",
   django: "Backend", "django rest framework": "Backend", laravel: "Backend",
-  nestjs: "Backend", fastapi: "Backend", flask: "Backend", jwt: "Backend",
+  nestjs: "Backend", fastapi: "Backend", flask: "Backend",
   websocket: "Backend", socketio: "Backend", sql: "Base de datos",
+
+  // Security / Auth
+  jwt: "Seguridad", oauth: "Seguridad", saml: "Seguridad", oidc: "Seguridad",
 
   // Database
   mongodb: "Base de datos", postgresql: "Base de datos", mysql: "Base de datos",
@@ -162,13 +201,19 @@ const TECH_CATEGORY_MAP = {
 
   // DevOps / Cloud
   docker: "DevOps / Cloud", "docker compose": "DevOps / Cloud", git: "DevOps / Cloud",
-  github: "DevOps / Cloud", minio: "DevOps / Cloud", vercel: "DevOps / Cloud",
+  github: "DevOps / Cloud", vercel: "DevOps / Cloud",
   nginx: "DevOps / Cloud", cicd: "DevOps / Cloud", aws: "DevOps / Cloud",
   "google cloud": "DevOps / Cloud", azure: "DevOps / Cloud", linux: "DevOps / Cloud",
-  kubernetes: "DevOps / Cloud", terraform: "DevOps / Cloud", s3: "DevOps / Cloud",
-  cloudinary: "DevOps / Cloud", airflow: "DevOps / Cloud", dagster: "DevOps / Cloud",
+  kubernetes: "DevOps / Cloud", terraform: "DevOps / Cloud",
+  airflow: "DevOps / Cloud", dagster: "DevOps / Cloud",
   prefect: "DevOps / Cloud", "step functions": "DevOps / Cloud",
   bash: "DevOps / Cloud", makefile: "DevOps / Cloud", makefiles: "DevOps / Cloud",
+
+  // Storage / Infrastructure — kept distinct from "DevOps / Cloud": these are
+  // concrete storage services, not the broader cloud/infra platform. Also keeps
+  // MinIO (S3-compatible, professional evidence) visually separate from AWS
+  // itself so the CV never implies "MinIO experience" = "AWS S3 experience".
+  minio: "Storage", s3: "Storage", cloudinary: "Storage",
 
   // Mobile
   "react native": "Mobile", expo: "Mobile",
@@ -186,7 +231,7 @@ const TECH_CATEGORY_MAP = {
   jira: "Herramientas", poetry: "Herramientas", uv: "Herramientas", nx: "Herramientas",
 
   // APIs / Integration
-  "rest api": "APIs / Integración", graphql: "APIs / Integración", oauth: "APIs / Integración",
+  "rest api": "APIs / Integración", graphql: "APIs / Integración",
 
   // Payments
   "mercado pago": "Pagos",
@@ -198,22 +243,22 @@ const TECH_CATEGORY_MAP = {
 // Order in which categories are shown, per detected job identity.
 // Categories with no items are simply skipped — nothing is padded or invented.
 const CATEGORY_ORDER_BY_IDENTITY = {
-  fullstack:  ["Frontend", "Backend", "Base de datos", "DevOps / Cloud", "AI / ML", "APIs / Integración", "Pagos", "Mobile", "Testing", "Herramientas", "Metodologías", "Stack adicional"],
-  backend:    ["Backend", "Base de datos", "APIs / Integración", "DevOps / Cloud", "Frontend", "Testing", "Herramientas", "Metodologías", "Stack adicional"],
-  frontend:   ["Frontend", "APIs / Integración", "Backend", "Base de datos", "Testing", "Herramientas", "Mobile", "Metodologías", "Stack adicional"],
-  react:      ["Frontend", "APIs / Integración", "Backend", "Base de datos", "Testing", "Herramientas", "Mobile", "Metodologías", "Stack adicional"],
-  node:       ["Backend", "Base de datos", "APIs / Integración", "Frontend", "DevOps / Cloud", "Testing", "Herramientas", "Metodologías", "Stack adicional"],
-  python:     ["Backend", "Base de datos", "APIs / Integración", "DevOps / Cloud", "Frontend", "Testing", "Herramientas", "Metodologías", "Stack adicional"],
-  data:       ["Backend", "Base de datos", "Frontend", "DevOps / Cloud", "APIs / Integración", "Herramientas", "Testing", "Metodologías", "Stack adicional"],
-  devops:     ["DevOps / Cloud", "Backend", "Base de datos", "Herramientas", "APIs / Integración", "Testing", "Metodologías", "Stack adicional"],
-  cloud:      ["DevOps / Cloud", "Backend", "Base de datos", "Herramientas", "APIs / Integración", "Testing", "Metodologías", "Stack adicional"],
-  mobile:     ["Mobile", "Frontend", "Backend", "AI / ML", "Base de datos", "DevOps / Cloud", "Herramientas", "Metodologías", "Stack adicional"],
-  ai:         ["AI / ML", "Backend", "APIs / Integración", "Base de datos", "Frontend", "DevOps / Cloud", "Herramientas", "Metodologías", "Stack adicional"],
-  automation: ["AI / ML", "Backend", "APIs / Integración", "Base de datos", "Herramientas", "DevOps / Cloud", "Frontend", "Metodologías", "Stack adicional"],
-  saas:       ["Backend", "Frontend", "Base de datos", "Pagos", "AI / ML", "DevOps / Cloud", "APIs / Integración", "Herramientas", "Metodologías", "Stack adicional"],
-  ecommerce:  ["Frontend", "Backend", "Pagos", "Base de datos", "DevOps / Cloud", "Herramientas", "Metodologías", "Stack adicional"],
-  api:        ["Backend", "APIs / Integración", "Base de datos", "DevOps / Cloud", "Herramientas", "Frontend", "Testing", "Metodologías", "Stack adicional"],
-  realtime:   ["Backend", "APIs / Integración", "Base de datos", "Frontend", "Mobile", "DevOps / Cloud", "Herramientas", "Metodologías", "Stack adicional"],
+  fullstack:  ["Frontend", "Backend", "Base de datos", "DevOps / Cloud", "AI / ML", "APIs / Integración", "Seguridad", "Pagos", "Mobile", "Storage", "Testing", "Herramientas", "Metodologías", "Stack adicional"],
+  backend:    ["Backend", "Base de datos", "APIs / Integración", "Seguridad", "DevOps / Cloud", "Storage", "Frontend", "Testing", "Herramientas", "Metodologías", "Stack adicional"],
+  frontend:   ["Frontend", "APIs / Integración", "Backend", "Base de datos", "Testing", "Herramientas", "Mobile", "Seguridad", "Metodologías", "Stack adicional"],
+  react:      ["Frontend", "APIs / Integración", "Backend", "Base de datos", "Testing", "Herramientas", "Mobile", "Seguridad", "Metodologías", "Stack adicional"],
+  node:       ["Backend", "Base de datos", "APIs / Integración", "Seguridad", "Frontend", "DevOps / Cloud", "Storage", "Testing", "Herramientas", "Metodologías", "Stack adicional"],
+  python:     ["Backend", "Base de datos", "APIs / Integración", "Seguridad", "DevOps / Cloud", "Frontend", "Storage", "Testing", "Herramientas", "Metodologías", "Stack adicional"],
+  data:       ["Backend", "Base de datos", "Storage", "Frontend", "DevOps / Cloud", "APIs / Integración", "Seguridad", "Herramientas", "Testing", "Metodologías", "Stack adicional"],
+  devops:     ["DevOps / Cloud", "Storage", "Backend", "Base de datos", "Seguridad", "Herramientas", "APIs / Integración", "Testing", "Metodologías", "Stack adicional"],
+  cloud:      ["DevOps / Cloud", "Storage", "Backend", "Base de datos", "Seguridad", "Herramientas", "APIs / Integración", "Testing", "Metodologías", "Stack adicional"],
+  mobile:     ["Mobile", "Frontend", "Backend", "AI / ML", "Base de datos", "Seguridad", "DevOps / Cloud", "Storage", "Herramientas", "Metodologías", "Stack adicional"],
+  ai:         ["AI / ML", "Backend", "APIs / Integración", "Base de datos", "Frontend", "DevOps / Cloud", "Storage", "Seguridad", "Herramientas", "Metodologías", "Stack adicional"],
+  automation: ["AI / ML", "Backend", "APIs / Integración", "Base de datos", "Herramientas", "DevOps / Cloud", "Storage", "Frontend", "Seguridad", "Metodologías", "Stack adicional"],
+  saas:       ["Backend", "Frontend", "Base de datos", "Pagos", "AI / ML", "DevOps / Cloud", "APIs / Integración", "Seguridad", "Storage", "Herramientas", "Metodologías", "Stack adicional"],
+  ecommerce:  ["Frontend", "Backend", "Pagos", "Base de datos", "Seguridad", "DevOps / Cloud", "Herramientas", "Metodologías", "Stack adicional"],
+  api:        ["Backend", "APIs / Integración", "Seguridad", "Base de datos", "DevOps / Cloud", "Herramientas", "Frontend", "Testing", "Metodologías", "Stack adicional"],
+  realtime:   ["Backend", "APIs / Integración", "Base de datos", "Frontend", "Mobile", "Seguridad", "DevOps / Cloud", "Herramientas", "Metodologías", "Stack adicional"],
 };
 
 // ─── FASE 3: Evidence overrides ─────────────────────────────────────────────
@@ -228,8 +273,21 @@ const CATEGORY_ORDER_BY_IDENTITY = {
 // synthesized from this override, so "no production AWS experience" still holds.
 const EVIDENCE_OVERRIDES = { aws: "B" };
 
+// getTechnologyEvidence() (masterProfile.js) only matches a tech's own
+// `normalized`/`name` fields — it doesn't know about ALIAS_MAP. That means a
+// JD shorthand like "express" (alias of "Express.js", which IS verified A-tier)
+// would come back null and get misclassified as RECOVERABLE. Fall back to
+// alias resolution before giving up, so evidence lookups agree with the
+// alias-aware dedup already used elsewhere (recoverMissingKeywords, ATS score).
 function getEffectiveEvidence(techName) {
-  const tech = getTechnologyEvidence(techName);
+  let tech = getTechnologyEvidence(techName);
+  if (!tech && techName) {
+    const norm = techName.toLowerCase().replace(/[.\-_]/g, "").replace(/\s+/g, " ").trim();
+    for (const alias of (ALIAS_MAP.get(norm) || [])) {
+      tech = getTechnologyEvidence(alias);
+      if (tech) break;
+    }
+  }
   if (!tech) return null;
   const override = EVIDENCE_OVERRIDES[tech.normalized];
   return override ? { ...tech, category: override, _overridden: true } : tech;
@@ -310,6 +368,28 @@ export class ATSOptimizerService {
   // this in one place is what guarantees a technology lands in the same
   // category whether it came from the profile or from keyword recovery.
 
+  // ─── FASE 5: Shared priority-tier classifier ───────────────────────────────────
+  //
+  // Combines with evidence level (VERIFIED/RECOVERABLE/UNSUPPORTED, see
+  // classifyKeywordForRecovery) to drive placement decisions: must_have +
+  // verified deserves top billing; secondary + recoverable is the first thing
+  // to drop when a section runs out of room. Reused by classifyKeywordForRecovery(),
+  // recoverMissingKeywords() (sorting the "Tecnologías relevantes" bucket), and
+  // buildAdaptiveExperience() (weighting which achievement bullets surface).
+
+  _priorityTierFor(keyword, jdAnalysis) {
+    if (!jdAnalysis) return "secondary";
+    const norm = this._normalize(keyword);
+    const hits = (list) => (list || []).some((k) => {
+      const kn = this._normalize(k);
+      return kn === norm || kn.includes(norm) || norm.includes(kn) ||
+        (kn.length >= 4 && norm.length >= 4 && kn.slice(0, 4) === norm.slice(0, 4));
+    });
+    if (hits(jdAnalysis.requiredSkills))   return "must_have";
+    if (hits(jdAnalysis.niceToHaveSkills)) return "nice_to_have";
+    return "secondary";
+  }
+
   _classifySkillCategory(normalizedName) {
     if (TECH_CATEGORY_MAP[normalizedName]) return TECH_CATEGORY_MAP[normalizedName];
     const FALLBACK = { frontend: "Frontend", backend: "Backend", database: "Base de datos", devops: "DevOps / Cloud", mobile: "Mobile" };
@@ -317,6 +397,38 @@ export class ATSOptimizerService {
       if (keys.includes(normalizedName)) return FALLBACK[type] || "Stack adicional";
     }
     return "Stack adicional";
+  }
+
+  // ─── FASE 6: Duplicate-skill detector ──────────────────────────────────────────
+  //
+  // Flags a technology listed under more than one Skills category (alias-aware,
+  // e.g. "React" + "ReactJS" would count as the same tech). buildAdaptiveSkills()
+  // and recoverMissingKeywords() already dedupe as they build the CV, so this
+  // should normally return []; it's a safety net exposed via calculateATSScore()
+  // so keyword stuffing/regressions are visible instead of silent.
+
+  _detectDuplicateSkills(skills) {
+    const seen = new Map(); // canonical normalized key -> [{category, item}]
+    const duplicates = [];
+    for (const sg of skills || []) {
+      for (const item of (sg.items || [])) {
+        const norm = this._normalize(item);
+        const aliasKeys = [norm, ...(ALIAS_MAP.get(norm) || [])];
+        const existingKey = aliasKeys.find((k) => seen.has(k));
+        const key = existingKey || norm;
+        if (!seen.has(key)) seen.set(key, []);
+        seen.get(key).push({ category: sg.category, item });
+      }
+    }
+    for (const [, occurrences] of seen) {
+      if (occurrences.length > 1) {
+        duplicates.push({
+          technology: occurrences[0].item,
+          occurrences: occurrences.map((o) => `${o.item} (${o.category})`),
+        });
+      }
+    }
+    return duplicates;
   }
 
   _sortByRelevance(items, jdKeywords) {
@@ -705,12 +817,21 @@ Devuelve SOLO JSON válido:
   //                   items within a category ordered by JD relevance, then evidence
   //                   tier (A > B > C), preserving the master-profile order as tiebreak.
 
-  buildAdaptiveSkills(jobIdentity, jdKeywords) {
-    const jdNorms = (jdKeywords || []).map((k) => this._normalize(k));
+  buildAdaptiveSkills(jobIdentity, jdKeywords, jdAnalysis) {
+    const jdNorms   = (jdKeywords || []).map((k) => this._normalize(k));
+    const mustNorms = (jdAnalysis?.requiredSkills   || []).map((k) => this._normalize(k));
+    const niceNorms = (jdAnalysis?.niceToHaveSkills || []).map((k) => this._normalize(k));
 
-    const jdScoreFor = (normName) =>
-      jdNorms.some((kw) => normName === kw || normName.includes(kw) || kw.includes(normName) ||
-        (normName.length >= 4 && kw.length >= 4 && normName.slice(0, 4) === kw.slice(0, 4))) ? 1 : 0;
+    // TIER weighting: must-have requirements outrank nice-to-haves, which
+    // outrank a generic keyword hit, which outranks no JD relevance at all.
+    const jdScoreFor = (normName) => {
+      const hits = (list) => list.some((kw) => normName === kw || normName.includes(kw) || kw.includes(normName) ||
+        (normName.length >= 4 && kw.length >= 4 && normName.slice(0, 4) === kw.slice(0, 4)));
+      if (hits(mustNorms)) return 3;
+      if (hits(niceNorms)) return 2;
+      if (hits(jdNorms))   return 1;
+      return 0;
+    };
 
     const categoryFor = (tech) => this._classifySkillCategory(tech.normalized);
 
@@ -721,9 +842,14 @@ Devuelve SOLO JSON válido:
       if (effective.category === "A" || effective.category === "B") {
         collected.push({ name: tech.name, normalized: tech.normalized, evidence: effective.category, category: categoryFor(tech) });
       } else if (effective.category === "C" && jdScoreFor(tech.normalized)) {
-        // Only bring in learning-tier tech when the JD actually calls for it —
-        // keeps the CV from listing every "currently learning" tag on every job.
-        collected.push({ name: tech.name, normalized: tech.normalized, evidence: "C", category: categoryFor(tech) });
+        // Learning-tier tech (e.g. Redis, GraphQL — anything NOT promoted by
+        // EVIDENCE_OVERRIDES, since AWS is already effectively "B" by the time
+        // it gets here) only appears when the JD actually calls for it, and
+        // ALWAYS in RECOVERABLE_CATEGORY — never blended into its natural
+        // category next to verified (A/B) tech. Placing "Redis" next to
+        // "PostgreSQL, MongoDB" under "Base de datos" would visually claim
+        // equal evidence for both, which is exactly what this phase forbids.
+        collected.push({ name: tech.name, normalized: tech.normalized, evidence: "C", category: RECOVERABLE_CATEGORY });
       }
     }
 
@@ -848,21 +974,28 @@ Devuelve SOLO JSON válido:
   // Selects and ranks achievement bullets from MASTER_PROFILE.experience
   // based on job type. Applies bullet limits per entry.
 
-  buildAdaptiveExperience(jobIdentity, jdKeywords) {
+  buildAdaptiveExperience(jobIdentity, jdKeywords, jdAnalysis) {
     const { primary, secondary } = jobIdentity;
     const allTypes  = [primary, ...secondary];
     const jdNorms   = (jdKeywords || []).map((k) => k.toLowerCase());
+    const mustNorms = (jdAnalysis?.requiredSkills   || []).map((k) => k.toLowerCase());
+    const niceNorms = (jdAnalysis?.niceToHaveSkills || []).map((k) => k.toLowerCase());
 
     // Pool of relevance keywords from all detected job types
     const relevantKws = [...new Set(
       allTypes.flatMap((t) => TYPE_ACHIEVEMENT_KEYWORDS[t] || [])
     )];
 
+    // Bullets mentioning a MUST HAVE requirement should surface before ones
+    // that only match a nice-to-have or a generic extracted keyword — same
+    // must_have > nice_to_have > secondary priority used for Skills/Projects.
     const scoreAch = (text) => {
       const low = text.toLowerCase();
       let s = 0;
       for (const kw of relevantKws) if (low.includes(kw)) s += 2;
-      for (const kw of jdNorms)     if (low.includes(kw)) s += 3;
+      for (const kw of mustNorms)   if (low.includes(kw)) s += 5;
+      for (const kw of niceNorms)   if (low.includes(kw)) s += 3;
+      for (const kw of jdNorms)     if (low.includes(kw)) s += 1;
       return s;
     };
 
@@ -1011,10 +1144,29 @@ Devuelve SOLO JSON válido:
   // Falls back to the pre-written summaryVariant from masterProfile if Claude fails.
 
   async _generateAdaptiveSummary(jobDescription, jdAnalysis, jobIdentity, baseSummary) {
-    const allowedTechs = [...TECHNOLOGY_CATEGORIES.A, ...TECHNOLOGY_CATEGORIES.B]
-      .map((t) => t.name)
-      .slice(0, 30)
-      .join(", ");
+    // JD-relevance-first tech list, reusing classifyKeywordForRecovery() (the
+    // single source of truth for evidence+priority) instead of an arbitrary
+    // slice of the matrix. This is what makes the summary talk about "why this
+    // candidate fits THIS job" instead of dumping the whole stack evenly —
+    // e.g. a backend-Python JD shouldn't spend words on React Native/Mercado Pago.
+    const jdDecisions = (jdAnalysis.keywords || [])
+      .map((kw) => this.classifyKeywordForRecovery(kw, jdAnalysis))
+      .filter((d) => d.level === "VERIFIED" && d.matchedTech);
+
+    const priorityTechs = [...new Set(
+      jdDecisions.filter((d) => d.priority === "must_have").map((d) => d.matchedTech)
+    )];
+    const secondaryJdTechs = [...new Set(
+      jdDecisions.filter((d) => d.priority !== "must_have").map((d) => d.matchedTech)
+        .filter((t) => !priorityTechs.includes(t))
+    )];
+
+    // Filler only — the candidate's own core stack, used solely so the prompt's
+    // "allowed technologies" list isn't limited to JD overlap (Claude still
+    // needs to name the profile honestly), but it's explicitly framed as
+    // lower-priority than the two lists above.
+    const coreStack = (MASTER_PROFILE.positioning?.coreStack || [])
+      .filter((t) => !priorityTechs.includes(t) && !secondaryJdTechs.includes(t));
 
     const requiredStr = (jdAnalysis.requiredSkills || []).slice(0, 10).join(", ");
     const secondaryStr = jobIdentity.secondary.length
@@ -1036,8 +1188,14 @@ ${(jobDescription || "").slice(0, 800)}
 
 SKILLS REQUERIDAS POR EL PUESTO: ${requiredStr}
 
-TECNOLOGÍAS CON EVIDENCIA REAL (ÚNICAS PERMITIDAS):
-${allowedTechs}
+TECNOLOGÍAS PRIORITARIAS (verificadas en el perfil Y pedidas como MUST HAVE — mencionar primero, con más énfasis):
+${priorityTechs.join(", ") || "(ninguna coincidencia directa — usar el stack principal del perfil)"}
+
+TECNOLOGÍAS SECUNDARIAS (verificadas y relevantes para esta oferta, pero menor prioridad):
+${secondaryJdTechs.join(", ") || "(ninguna)"}
+
+RESTO DEL STACK VERIFICADO (mencionar SOLO si sobra espacio y aporta valor real a ESTE puesto — no repartir el resumen equitativamente entre todas las tecnologías del perfil):
+${coreStack.join(", ")}
 
 IDENTIDAD PROFESIONAL (REGLAS INMUTABLES):
 - La identidad real del candidato es: "${mainTitle}" con ${yearsExp}+ años de experiencia.
@@ -1053,8 +1211,10 @@ IDENTIDAD PROFESIONAL (REGLAS INMUTABLES):
 INSTRUCCIONES DE REDACCIÓN:
 - Escribe SOLO el párrafo del resumen. Sin títulos, sin comillas, sin JSON.
 - Longitud objetivo: 75-110 palabras.
-- Incorporar naturalmente las keywords ATS más relevantes para este puesto.
-- NO mencionar tecnologías fuera de la lista de tecnologías permitidas.
+- PRIORIZÁ las tecnologías PRIORITARIAS. Usá las SECUNDARIAS si hay espacio. El RESTO DEL STACK solo si aporta valor real a esta oferta específica — no es obligatorio mencionarlo.
+- El resumen debe responder "¿por qué este candidato encaja con ESTE puesto?", no ser un inventario de todo lo que sabe.
+- NO mencionar tecnologías fuera de las tres listas de arriba.
+- NO mencionar ni implicar experiencia con tecnologías que no estén en esas listas (aunque aparezcan en la descripción del puesto).
 - NO inventar métricas, responsabilidades ni logros no documentados.
 - NO usar frases vacías ("apasionado por", "dinámico", "proactivo", "soy una persona...").
 - NO usar Markdown (sin **, sin #, sin *).
@@ -1081,11 +1241,29 @@ Resumen:`;
     return baseSummary;
   }
 
-  // ─── FASE 2: Section Order Metadata ──────────────────────────────────────────
-
+  // ─── Section Order Metadata ───────────────────────────────────────────────────
+  //
+  // KNOWN LIMITATION: the CV schema embeds Projects INSIDE the `experience`
+  // array (the "Proyectos Destacados" header entry + following items) rather
+  // than as its own top-level section — see optimizeCV() step 6. That means
+  // "Skills before Projects" (wanted for backend/python/data/devops/api roles)
+  // vs. "Projects before Skills" (frontend/fullstack) can't be represented by
+  // reordering top-level keys without splitting experience/projects into
+  // separate arrays, which is a bigger schema change than this pass should
+  // make (would also require frontend/PDF updates). Restructuring that split
+  // is a reasonable follow-up if this metadata gets wired to rendering.
+  //
+  // This method still varies what CAN be safely reordered today; it remains
+  // inert until the frontend/PDF actually read architecture.sectionOrder
+  // (documented in optimizeCV()'s architecture block).
   _getSectionOrder(jobIdentity) {
-    // All types currently use the same order; Phase 3 will vary this.
-    return ["summary", "experience", "skills", "education", "languages", "certifications"];
+    const { primary } = jobIdentity;
+    // Certification-heavy/technical-formation identities: surface Formación
+    // (certifications, which double as course history) ahead of Languages.
+    const certsFirst = new Set(["mobile", "react", "python", "data", "devops", "cloud", "ai"]);
+    return certsFirst.has(primary)
+      ? ["summary", "experience", "skills", "education", "certifications", "languages"]
+      : ["summary", "experience", "skills", "education", "languages", "certifications"];
   }
 
   // ─── FASE 2: optimizeCV (REWRITTEN) ──────────────────────────────────────────
@@ -1111,9 +1289,9 @@ Resumen:`;
       const gapAnalysis           = this.buildGapAnalysis(requirementMatrix);
 
       // ── 3. Build adaptive components from masterProfile ───────────────────────
-      const adaptiveExperience = this.buildAdaptiveExperience(jobIdentity, jdAnalysis.keywords);
+      const adaptiveExperience = this.buildAdaptiveExperience(jobIdentity, jdAnalysis.keywords, jdAnalysis);
       const adaptiveProjects   = this.buildAdaptiveProjects(jobIdentity, jdAnalysis.keywords, undefined, jdAnalysis);
-      const adaptiveSkills     = this.buildAdaptiveSkills(jobIdentity, jdAnalysis.keywords);
+      const adaptiveSkills     = this.buildAdaptiveSkills(jobIdentity, jdAnalysis.keywords, jdAnalysis);
 
       // ── 4. Generate adapted summary + select title variant ───────────────────
       const baseSummary = this._selectSummaryVariant(jobIdentity);
@@ -1435,6 +1613,21 @@ Resumen:`;
       ? (skillsMatched.length / requiredSkills.length) * 30
       : 15;
 
+    // NICE TO HAVE matching — mirrors requiredSkills matching above, but never
+    // fed into `score`: nice-to-haves are a bonus signal, not a requirement.
+    const niceToHaveSkills = [...new Set(
+      (jdAnalysis.niceToHaveSkills || []).map((s) => this._normalize(s)).filter(Boolean)
+    )];
+    const niceMatched = [];
+    const niceMissing = [];
+    for (const s of niceToHaveSkills) {
+      if (cvTextNorm.includes(s) || this._fuzzyMatch(s, cvWords) || this._aliasMatch(s, cvTextNorm, cvWords)) {
+        niceMatched.push(s);
+      } else {
+        niceMissing.push(s);
+      }
+    }
+
     const hasSkills     = (parsedCV.skills || []).length > 0;
     const hasExperience = (parsedCV.experience || []).length > 0;
     const hasEducation  = (parsedCV.education || []).length > 0;
@@ -1447,6 +1640,37 @@ Resumen:`;
     const totalScore = Math.round(keywordScore + skillScore + structureScore);
     const kwCount    = allKeywords.length;
     const confidence = kwCount === 0 ? "none" : kwCount < 5 ? "low" : kwCount < 13 ? "medium" : "high";
+
+    // Evidence-tier transparency: a 100% keyword match padded entirely with
+    // RECOVERABLE (no-evidence) technologies is NOT the same quality signal as
+    // one built on VERIFIED experience. This never changes `score` itself —
+    // it's additive context so the CV isn't judged as "artificially perfect".
+    // Arrays (not just counts) so callers can see WHICH keywords fall where —
+    // "why does this CV have this score", not just "how many".
+    const evidenceBreakdown = { verified: [], recoverable: [], unsupported: [] };
+    for (const kw of keywordsFound) {
+      const level = this.classifyKeywordForRecovery(kw, jdAnalysis).level;
+      if (level === "VERIFIED") evidenceBreakdown.verified.push(kw);
+      else if (level === "RECOVERABLE") evidenceBreakdown.recoverable.push(kw);
+      else evidenceBreakdown.unsupported.push(kw);
+    }
+
+    // Placement quality: what fraction of the matched keywords are backed by
+    // real evidence vs. bare technology mentions. Two CVs can both "match 90%
+    // of keywords" and be very different in trustworthiness — this says which.
+    const totalMatched = evidenceBreakdown.verified.length + evidenceBreakdown.recoverable.length + evidenceBreakdown.unsupported.length;
+    const verifiedRatio = totalMatched > 0 ? evidenceBreakdown.verified.length / totalMatched : 0;
+    const placementQuality = {
+      verifiedRatio: Math.round(verifiedRatio * 100) / 100,
+      label: totalMatched === 0 ? "sin datos" : verifiedRatio >= 0.7 ? "fuerte" : verifiedRatio >= 0.4 ? "moderada" : "débil",
+      verifiedPlacement: evidenceBreakdown.verified.length,
+      recoverablePlacement: evidenceBreakdown.recoverable.length,
+    };
+
+    // Duplicate detection — a technology listed under more than one Skills
+    // category (alias-aware). Should normally be empty; buildAdaptiveSkills()/
+    // recoverMissingKeywords() already dedupe, this is a safety-net signal.
+    const duplicateKeywords = this._detectDuplicateSkills(parsedCV.skills || []);
 
     return {
       score: Math.min(100, Math.max(0, totalScore)),
@@ -1461,6 +1685,13 @@ Resumen:`;
         skills:    Math.round(skillScore),
         structure: Math.round(structureScore),
       },
+      // Additive — existing consumers reading score/breakdown/keywordsFound/
+      // skillsMatched/skillsMissing etc. are unaffected by the fields below.
+      mustHave:   { matched: skillsMatched, missing: skillsMissing },
+      niceToHave: { matched: niceMatched,   missing: niceMissing },
+      evidenceBreakdown,
+      placementQuality,
+      duplicateKeywords,
       recommendations: this._generateRecommendations(
         keywordsFound, keywordsMissing, skillsMatched, skillsMissing, parsedCV
       ),
@@ -1533,6 +1764,11 @@ Resumen:`;
       // Backslash escape sequences (LLM output artifacts)
       .replace(/\\n/g, " ")
       .replace(/\\t/g, " ")
+      // Markdown-escaped punctuation leaking into URLs/text, e.g. "https\://x"
+      // or "mailto\:" — a Markdown renderer escapes these characters so they
+      // aren't parsed as syntax; once flattened to plain text the backslash
+      // just corrupts the URL. Strip the escaping backslash, keep the character.
+      .replace(/\\([:/_*[\]().!-])/g, "$1")
       // Collapse multiple spaces (but preserve single newlines in multi-line content)
       .replace(/[ \t]{2,}/g, " ")
       .trim();
@@ -1546,6 +1782,16 @@ Resumen:`;
 
     return {
       ...cv,
+      personalInfo: cv.personalInfo && {
+        ...cv.personalInfo,
+        name:      s(cv.personalInfo.name),
+        title:     s(cv.personalInfo.title),
+        location:  s(cv.personalInfo.location),
+        linkedin:  s(cv.personalInfo.linkedin),
+        github:    s(cv.personalInfo.github),
+        portfolio: s(cv.personalInfo.portfolio),
+        website:   s(cv.personalInfo.website),
+      },
       summary:    s(cv.summary),
       experience: arr(cv.experience, (exp) => ({
         ...exp,
@@ -1567,11 +1813,13 @@ Resumen:`;
         ...c,
         name:   s(c.name),
         issuer: s(c.issuer),
+        url:    s(c.url),
       })),
       languages: arr(cv.languages, (l) => ({
         ...l,
-        name:  s(l.name),
-        level: s(l.level),
+        name:           s(l.name),
+        level:          s(l.level),
+        certificateUrl: s(l.certificateUrl),
       })),
     };
   }
@@ -1696,9 +1944,11 @@ Resumen:`;
 
     // ── FACTUAL ─────────────────────────────────────────────────────────────────
 
-    // 7. D-level technologies in main skill sections (not in "Conocimientos en desarrollo")
+    // 7. D-level technologies presented as verified skills (outside the
+    // dedicated RECOVERABLE_CATEGORY, where unverified tech is expected and
+    // clearly labeled — see recoverMissingKeywords()).
     const mainSkillItems = (out.skills || [])
-      .filter((sg) => !/conocimientos/i.test(sg.category || ""))
+      .filter((sg) => !/conocimientos/i.test(sg.category || "") && sg.category !== RECOVERABLE_CATEGORY)
       .flatMap((sg) => sg.items || []);
     const dLevelInMain = mainSkillItems.filter((item) => {
       const tech = getTechnologyEvidence(item);
@@ -1762,17 +2012,87 @@ Resumen:`;
   // review", not "silently reject". At the same time, recovered items are never
   // used to fabricate achievements; they only ever land in Skills.
   //
-  // Placement/confidence by evidence tier:
-  //   A/B  — verified/hands-on. Inserted into the correct category normally.
-  //   C    — learning-tier (e.g. Redis, GraphQL) or AWS (see EVIDENCE_OVERRIDES).
-  //          Inserted into the correct category — not hidden — but sorted after
-  //          A/B items so the strongest evidence still leads each line.
-  //   D / unknown — no verified evidence at all (e.g. FastAPI is D; Bash, Makefiles,
-  //          Athena, Poetry aren't in the matrix). Still inserted into the best-
-  //          guess category (or "Stack adicional" if it can't be classified) for
-  //          the user to review and remove manually — never omitted outright.
+  // Placement/confidence by evidence tier (see classifyKeywordForRecovery()):
+  //   VERIFIED (A/B, incl. the AWS override) — inserted into its natural
+  //          category (Frontend/Backend/...), same as everything else there.
+  //   RECOVERABLE (C-tier like Redis/GraphQL, D-tier like FastAPI, or simply
+  //          unknown to the matrix, e.g. Athena/Poetry) — inserted into the
+  //          dedicated RECOVERABLE_CATEGORY ("Tecnologías relevantes") instead
+  //          of the natural category, so it never reads as equally-proven next
+  //          to verified tech. Never omitted outright — the user reviews/removes
+  //          manually — UNLESS it's a non-technology practice/soft-skill term
+  //          (NON_TECH_TERMS), which is discarded rather than shown as a skill.
+  //
+  // FASE 5: within RECOVERABLE_CATEGORY, items are sorted must_have >
+  // nice_to_have > secondary (via the optional `jdAnalysis` param) and capped
+  // at MAX_RECOVERABLE_ITEMS — a long uncurated list of unverified tech reads
+  // as keyword stuffing and hurts credibility more than it helps ATS matching.
 
-  recoverMissingKeywords(optimizedCV, jdKeywords) {
+  // ─── FASE 4/5: recoverKeyword decision function ────────────────────────────────
+  //
+  // Single source of truth for "what do we do with this JD keyword": three
+  // evidence levels — VERIFIED (master profile A/B, can be used as an experience
+  // claim in Summary/Experience/Projects), RECOVERABLE (helps ATS matching but
+  // must NEVER be phrased as a claim of experience — technologyMention, not
+  // experienceClaim), UNSUPPORTED (not a technology at all — a responsibility
+  // or soft-skill term like "code review" — discarded rather than forced into
+  // Skills). This directly implements "keyword ≠ experience claim".
+  //
+  // `jdAnalysis` (optional) additionally tags a `priority` — must_have /
+  // nice_to_have / secondary — used to rank keywords within the same evidence
+  // level (e.g. a must-have RECOVERABLE tech outranks a secondary one when the
+  // "Tecnologías relevantes" bucket has to be capped — see recoverMissingKeywords()).
+
+  classifyKeywordForRecovery(keyword, jdAnalysis = null) {
+    const kwNorm = this._normalize(keyword);
+    const priority = this._priorityTierFor(keyword, jdAnalysis);
+
+    if (NON_TECH_TERMS.has(kwNorm)) {
+      return {
+        keyword, normalizedKeyword: kwNorm, source: "job_description", priority,
+        level: "UNSUPPORTED", evidenceLevel: null,
+        canClaimExperience: false, canIncludeForATS: false,
+        preferredCategory: null, wording: "Práctica/responsabilidad, no una tecnología — no se agrega a Skills.",
+        matchedTech: null,
+      };
+    }
+
+    const tech = getEffectiveEvidence(keyword);
+
+    if (tech && (tech.category === "A" || tech.category === "B")) {
+      return {
+        keyword, normalizedKeyword: kwNorm, source: "job_description", priority,
+        level: "VERIFIED", evidenceLevel: tech.category,
+        canClaimExperience: true, canIncludeForATS: true,
+        preferredCategory: this._classifySkillCategory(tech.normalized),
+        wording: tech.wording, matchedTech: tech.name,
+      };
+    }
+
+    if (tech && (tech.category === "C" || tech.category === "D")) {
+      return {
+        keyword, normalizedKeyword: kwNorm, source: "job_description", priority,
+        level: "RECOVERABLE", evidenceLevel: tech.category,
+        canClaimExperience: false, canIncludeForATS: true,
+        preferredCategory: this._classifySkillCategory(tech.normalized),
+        wording: tech.wording, matchedTech: tech.name,
+      };
+    }
+
+    // No master-profile record at all — still ATS-recoverable as a bare
+    // technology mention (never as an experience claim), per explicit
+    // direction: don't drop a keyword just because it isn't verified.
+    return {
+      keyword, normalizedKeyword: kwNorm, source: "job_description", priority,
+      level: "RECOVERABLE", evidenceLevel: null,
+      canClaimExperience: false, canIncludeForATS: true,
+      preferredCategory: this._classifySkillCategory(kwNorm),
+      wording: "Mencionada en la oferta — sin evidencia confirmada en el perfil.",
+      matchedTech: null,
+    };
+  }
+
+  recoverMissingKeywords(optimizedCV, jdKeywords, jdAnalysis = null) {
     if (!jdKeywords?.length) return optimizedCV;
 
     const skills = (optimizedCV.skills || []).map((sg) => ({ ...sg, items: [...(sg.items || [])] }));
@@ -1787,6 +2107,8 @@ Resumen:`;
       )
     );
 
+    const summary = { verified: [], recoverable: [], discarded: [] };
+
     for (const kw of jdKeywords) {
       const kwNorm = this._normalize(kw);
       if (!kwNorm || kwNorm.split(" ").length > 3) continue;
@@ -1798,8 +2120,17 @@ Resumen:`;
         if ([...existingNorm].some((e) => e.length >= 4 && (e.startsWith(prefix) || kwNorm.startsWith(e.slice(0, 4))))) continue;
       }
 
-      const tech = getEffectiveEvidence(kw);
-      const category = this._classifySkillCategory(tech ? tech.normalized : kwNorm);
+      const decision = this.classifyKeywordForRecovery(kw, jdAnalysis);
+
+      if (!decision.canIncludeForATS) {
+        summary.discarded.push(kw);
+        continue;
+      }
+
+      // VERIFIED keywords go to their natural category (Frontend/Backend/...).
+      // Everything else (RECOVERABLE) goes to one dedicated, clearly-labeled
+      // bucket so it never reads as equally-proven next to verified tech.
+      const category = decision.level === "VERIFIED" ? decision.preferredCategory : RECOVERABLE_CATEGORY;
       const label = this._prettifyKeyword(kw);
 
       let idx = categoryIndex.get(category);
@@ -1812,9 +2143,29 @@ Resumen:`;
         skills[idx].items.push(label);
         existingNorm.add(kwNorm);
       }
+      (decision.level === "VERIFIED" ? summary.verified : summary.recoverable).push(kw);
     }
 
-    return { ...optimizedCV, skills };
+    // Sort + cap RECOVERABLE_CATEGORY: must_have first, then nice_to_have, then
+    // secondary. A CV with a dozen unverified technologies listed reads as
+    // padding, not signal — keep only the ones most worth the reviewer's trust.
+    // Priority is (re)computed per item rather than tracked during the loop
+    // above, because this category can already contain C-tier tech placed by
+    // buildAdaptiveSkills() (e.g. Redis, JD-relevant but not evidence-A/B) —
+    // items this function never itself "recovered".
+    const recIdx = categoryIndex.get(RECOVERABLE_CATEGORY);
+    if (recIdx !== undefined && skills[recIdx].items.length > 0) {
+      const TIER_ORDER = { must_have: 0, nice_to_have: 1, secondary: 2 };
+      const sorted = [...skills[recIdx].items].sort((a, b) => {
+        const pa = TIER_ORDER[this._priorityTierFor(a, jdAnalysis)] ?? 2;
+        const pb = TIER_ORDER[this._priorityTierFor(b, jdAnalysis)] ?? 2;
+        return pa - pb;
+      });
+      skills[recIdx] = { ...skills[recIdx], items: sorted.slice(0, MAX_RECOVERABLE_ITEMS) };
+    }
+
+    // Additive metadata — safe for existing consumers (they only read skills[]).
+    return { ...optimizedCV, skills, keywordRecoverySummary: summary };
   }
 
   // ─── FASE 2: recoverMissingSupportedKeywords ──────────────────────────────────
@@ -1988,6 +2339,13 @@ Resumen:`;
       "google cloud": "Google Cloud", "rest api": "REST API",
       "react native": "React Native", "testing library": "Testing Library",
       "styled components": "Styled Components",
+      jest: "Jest", vite: "Vite", vitest: "Vitest", fastapi: "FastAPI",
+      flask: "Flask", nginx: "Nginx", jira: "Jira", figma: "Figma",
+      airflow: "Airflow", dagster: "Dagster", prefect: "Prefect",
+      bigquery: "BigQuery", trino: "Trino", presto: "Presto",
+      langchain: "LangChain", nx: "Nx", uv: "UV",
+      "aws bedrock": "AWS Bedrock", llm: "LLM", ai: "AI",
+      kafka: "Kafka", terraform: "Terraform", "ci/cd": "CI/CD",
     };
     const norm = this._normalize(kw);
     if (MAP[norm]) return MAP[norm];
