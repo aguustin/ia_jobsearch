@@ -139,6 +139,13 @@ for (const group of ALIAS_GROUPS) {
 // per-domain category, same as before.
 const RECOVERABLE_CATEGORY = "Tecnologías relevantes";
 
+// Meta-descriptors on TECHNOLOGY_EVIDENCE_MATRIX's `tags` field that classify
+// WHAT KIND of thing a technology is, not what domain/context it serves.
+// Excluded from the tier-3 "complementary technology" tag-overlap signal in
+// _rankVerifiedTechnologies() — two techs sharing "language" or "framework"
+// (e.g. Python + PHP) aren't meaningfully related just because of that.
+const GENERIC_TECH_TAGS = new Set(["language", "framework", "tools", "methodology"]);
+
 // A CV listing a dozen+ unverified technologies reads as padding, not signal.
 // Cap the bucket after sorting by priority (must_have > nice_to_have > secondary)
 // so the JD's actual requirements survive the cut, not whatever happened to be
@@ -380,10 +387,34 @@ export class ATSOptimizerService {
   _priorityTierFor(keyword, jdAnalysis) {
     if (!jdAnalysis) return "secondary";
     const norm = this._normalize(keyword);
+    // Exact match or substring containment only (e.g. "postgres" ⊂ "postgresql",
+    // "docker" ⊂ "docker compose"). A bare shared-prefix heuristic used to live
+    // here too, but a 4-char prefix is too weak a signal for short-ish tech
+    // names — e.g. "Postman" and "PostgreSQL" both start with "post" and would
+    // false-positive-match despite being unrelated. Aliases (react/reactjs,
+    // node/nodejs, etc.) are resolved upstream via getEffectiveEvidence(), so
+    // this function doesn't need its own fuzzy fallback for those.
     const hits = (list) => (list || []).some((k) => {
       const kn = this._normalize(k);
-      return kn === norm || kn.includes(norm) || norm.includes(kn) ||
-        (kn.length >= 4 && norm.length >= 4 && kn.slice(0, 4) === norm.slice(0, 4));
+      if (kn === norm) return true;
+      // Guard containment matching against short strings (e.g. "Go" ⊂ "Django")
+      // — below 3 chars a substring hit is coincidence, not relatedness.
+      if (Math.min(kn.length, norm.length) < 3) return false;
+      if (!(kn.includes(norm) || norm.includes(kn))) return false;
+      // Length-ratio guard: "git" ⊂ "github" (ratio .5) and "react" ⊂
+      // "react native" (.45 normalized) are DIFFERENT, unrelated technologies
+      // that only happen to share letters — GitHub isn't "more Git", React
+      // Native isn't "more React". A bare substring check treated them as
+      // direct matches, wrongly promoting them to must/nice-have. Requiring
+      // the shorter string to cover most of the longer one keeps true near-
+      // duplicates (singular/plural, "postgres"/"postgresql", ratio ≥.8) while
+      // rejecting distinct products that merely share a prefix. Legitimate
+      // same-family variants that fall below the ratio (e.g. "docker" vs.
+      // "docker compose", .43) still surface — just via tier-3 category-
+      // sibling matching in _rankVerifiedTechnologies() instead of as a false
+      // direct match, which is the more honest classification anyway.
+      const ratio = Math.min(kn.length, norm.length) / Math.max(kn.length, norm.length);
+      return ratio >= 0.6;
     });
     if (hits(jdAnalysis.requiredSkills))   return "must_have";
     if (hits(jdAnalysis.niceToHaveSkills)) return "nice_to_have";
@@ -397,6 +428,128 @@ export class ATSOptimizerService {
       if (keys.includes(normalizedName)) return FALLBACK[type] || "Stack adicional";
     }
     return "Stack adicional";
+  }
+
+  // ─── FASE 7: Verified-technology ranking + content budget ─────────────────────
+  //
+  // Replaces "collect every A/B technology, always" with a ranked, budgeted
+  // selection — the CV should read as specialized for THIS job, not as a full
+  // inventory of the master profile (which stays intact and complete;  only the
+  // GENERATED CV is pruned). Ranking tiers, in priority order:
+  //
+  //   TIER 1 — MUST HAVE + VERIFIED         (always included)
+  //   TIER 2 — NICE TO HAVE + VERIFIED      (always included)
+  //   TIER 3 — CORE STACK / complementary   (included up to the content budget)
+  //            verified tech that's either:
+  //              a) a fellow member of MASTER_PROFILE.positioning.coreStack,
+  //                 when the JD matched at least one coreStack technology, or
+  //              b) in the same Skills category, or shares an evidence-matrix
+  //                 `tag`, with something already in tier 1/2/3
+  //   TIER 6 — everything else VERIFIED     (included only if budget remains)
+  //
+  // Deliberately conservative: (a) and (b) both reuse data the matrix already
+  // has (positioning.coreStack, TECH_CATEGORY_MAP, the `tags` field — present
+  // on every TECHNOLOGY_EVIDENCE_MATRIX entry but unused until now) instead of
+  // inventing a new technology-relationship graph.
+
+  _rankVerifiedTechnologies(jdAnalysis, jobIdentity) {
+    const allVerified = TECHNOLOGY_EVIDENCE_MATRIX
+      .map((t) => ({ tech: t, effective: getEffectiveEvidence(t.name) }))
+      .filter(({ effective }) => effective && (effective.category === "A" || effective.category === "B"));
+
+    const tier1 = [];
+    const tier2 = [];
+    const rest  = [];
+    for (const entry of allVerified) {
+      const priority = this._priorityTierFor(entry.tech.name, jdAnalysis);
+      if (priority === "must_have") tier1.push(entry);
+      else if (priority === "nice_to_have") tier2.push(entry);
+      else rest.push(entry);
+    }
+
+    // Tier 3a — core-stack cohesion: if the JD matched anything from the
+    // candidate's declared core stack, treat the rest of that core stack as
+    // relevant too (e.g. a React-only JD still reasonably shows Node.js,
+    // because full-stack JS is genuinely the candidate's core stack — not an
+    // invented relationship, it's already declared as such in the profile).
+    const coreStack = MASTER_PROFILE.positioning?.coreStack || [];
+    const coreStackNorm = new Set(coreStack.map((n) => this._normalize(n)));
+    const matchedTier12 = [...tier1, ...tier2];
+    const coreStackTriggered = matchedTier12.some((e) => coreStackNorm.has(e.tech.normalized));
+
+    const tier3 = [];
+    const stillRest = [];
+    if (coreStackTriggered) {
+      for (const entry of rest) {
+        if (coreStackNorm.has(entry.tech.normalized)) tier3.push(entry);
+        else stillRest.push(entry);
+      }
+    } else {
+      stillRest.push(...rest);
+    }
+
+    // Tier 3b — same category or shared `tags` with anything already in tier 1/2/3a.
+    // GENERIC_TECH_TAGS are excluded from the tag-overlap signal: "language" or
+    // "framework" describes WHAT KIND of thing a tech is, not what domain it's
+    // used in, so it's too broad to imply relatedness (e.g. Python and PHP are
+    // both tagged "language" but aren't complementary — that would happily
+    // pull in an unrelated stack just because two techs share a meta-tag).
+    const interest = [...matchedTier12, ...tier3];
+    const interestCategories = new Set(interest.map((e) => this._classifySkillCategory(e.tech.normalized)));
+    const interestTags = new Set(
+      interest.flatMap((e) => e.tech.tags || []).filter((tag) => !GENERIC_TECH_TAGS.has(tag))
+    );
+
+    const tier6 = [];
+    for (const entry of stillRest) {
+      const category = this._classifySkillCategory(entry.tech.normalized);
+      const tagOverlap = (entry.tech.tags || []).some((tag) => interestTags.has(tag));
+      if (interestCategories.has(category) || tagOverlap) tier3.push(entry);
+      else tier6.push(entry);
+    }
+
+    // Tier 3/6 are budget-limited by the caller (slice to N) — without a
+    // relevance order first, that cutoff would just keep whatever happens to
+    // sit first in the matrix's definition order (e.g. the Languages section
+    // at the top), not what's actually relevant to THIS job identity. Sort by
+    // how prominent each tech's category is for the detected identity, then
+    // by evidence (A before B) as a tiebreaker.
+    const categoryOrder = CATEGORY_ORDER_BY_IDENTITY[jobIdentity?.primary] || CATEGORY_ORDER_BY_IDENTITY.fullstack;
+    const categoryRank = (entry) => {
+      const idx = categoryOrder.indexOf(this._classifySkillCategory(entry.tech.normalized));
+      return idx === -1 ? categoryOrder.length : idx;
+    };
+    const EVIDENCE_RANK = { A: 0, B: 1 };
+    const byRelevance = (a, b) => {
+      const catDiff = categoryRank(a) - categoryRank(b);
+      if (catDiff !== 0) return catDiff;
+      return (EVIDENCE_RANK[a.effective.category] ?? 2) - (EVIDENCE_RANK[b.effective.category] ?? 2);
+    };
+    tier3.sort(byRelevance);
+    tier6.sort(byRelevance);
+
+    return { tier1, tier2, tier3, tier6 };
+  }
+
+  // Content budget: how many TIER 3 (complementary) and TIER 6 (everything
+  // else verified, no relation signal at all) technologies the generated CV
+  // can afford, based on how many MUST/NICE HAVE requirements already matched
+  // VERIFIED. Returned as TWO separate budgets, not one combined number:
+  // tier 3 is still evidence-connected to what the JD actually asked for
+  // (core-stack cohesion or a shared category/tag with a real match), so it's
+  // reasonable to show more of it when the JD is sparse. Tier 6 has NO such
+  // connection — it exists only so a very thin JD doesn't leave a category
+  // empty, not to backfill an unrelated stack (e.g. a pure AWS/Docker/Git
+  // DevOps JD showing the entire PHP/Python/Django backend lineup just
+  // because "Backend" ranks high in that identity's category order and the
+  // budget had room). Tier 6 therefore stays capped low regardless of how
+  // sparse the JD is.
+  _computeComplementaryBudget(tier1Count, tier2Count) {
+    const relevant = tier1Count + tier2Count;
+    if (relevant >= 10) return { tier3Budget: 6,  tier6Budget: 2 };
+    if (relevant >= 5)  return { tier3Budget: 11, tier6Budget: 3 };
+    if (relevant >= 1)  return { tier3Budget: 16, tier6Budget: 4 };
+    return { tier3Budget: 18, tier6Budget: 6 }; // JD matched nothing verified
   }
 
   // ─── FASE 6: Duplicate-skill detector ──────────────────────────────────────────
@@ -800,30 +953,32 @@ Devuelve SOLO JSON válido:
     });
   }
 
-  // ─── FASE 3: Adaptive Skill Categories (COLLECT → CLASSIFY → DEDUPLICATE → SORT) ─
+  // ─── FASE 7: Adaptive Skill Categories (RANK → BUDGET → CLASSIFY → DEDUPLICATE → SORT) ─
   //
-  // Rewritten to stop losing verified technologies (see TECH_CATEGORY_MAP comment
-  // above for the root-cause bug this replaces).
+  // Was "collect every A/B technology, always" (see git history / TECH_CATEGORY_MAP
+  // comment for the tech-loss bug that fixed). Now: the GENERATED CV is a ranked,
+  // budgeted selection — masterProfile.js itself is untouched and remains the
+  // complete inventory; only what gets rendered into this specific CV is pruned.
   //
-  //   COLLECT      — every A/B technology in the master profile, always. Plus any
-  //                   C-tier technology that the JD actually mentions (so AWS/Redis/
-  //                   etc. show up when relevant, but we don't pad the CV with every
-  //                   "currently learning" tag on every job).
-  //   CLASSIFY     — each technology goes to its natural category via TECH_CATEGORY_MAP.
-  //                   Anything unmapped still gets a category via ITEM_SIGNALS, and if
-  //                   even that fails it goes to "Stack adicional" — it is NEVER dropped.
-  //   DEDUPLICATE  — one entry per technology (normalized + alias-aware).
-  //   SORT         — categories ordered per job identity (CATEGORY_ORDER_BY_IDENTITY);
-  //                   items within a category ordered by JD relevance, then evidence
-  //                   tier (A > B > C), preserving the master-profile order as tiebreak.
+  //   RANK      — every A/B technology into tier 1 (must-have match) / tier 2
+  //               (nice-to-have match) / tier 3 (core-stack or category/tag
+  //               complementary) / tier 6 (everything else) — see
+  //               _rankVerifiedTechnologies(). Tier 1/2 are ALWAYS kept in full;
+  //               a keyword match must never be dropped for space.
+  //   BUDGET    — tier 3/6 compete for a JD-size-adaptive budget (see
+  //               _computeComplementaryBudget()): a keyword-dense JD gets a
+  //               focused CV, a sparse JD can show more of the verified stack.
+  //   CLASSIFY  — each technology goes to its natural category via TECH_CATEGORY_MAP
+  //               (unchanged). C-tier tech the JD actually asks for still goes to
+  //               RECOVERABLE_CATEGORY, never blended into a natural category.
+  //   DEDUPLICATE / SORT — unchanged: alias-aware, categories ordered per job
+  //               identity, items within a category ordered by tier then evidence.
 
   buildAdaptiveSkills(jobIdentity, jdKeywords, jdAnalysis) {
     const jdNorms   = (jdKeywords || []).map((k) => this._normalize(k));
     const mustNorms = (jdAnalysis?.requiredSkills   || []).map((k) => this._normalize(k));
     const niceNorms = (jdAnalysis?.niceToHaveSkills || []).map((k) => this._normalize(k));
 
-    // TIER weighting: must-have requirements outrank nice-to-haves, which
-    // outrank a generic keyword hit, which outranks no JD relevance at all.
     const jdScoreFor = (normName) => {
       const hits = (list) => list.some((kw) => normName === kw || normName.includes(kw) || kw.includes(normName) ||
         (normName.length >= 4 && kw.length >= 4 && normName.slice(0, 4) === kw.slice(0, 4)));
@@ -835,13 +990,70 @@ Devuelve SOLO JSON válido:
 
     const categoryFor = (tech) => this._classifySkillCategory(tech.normalized);
 
-    // ── COLLECT ──────────────────────────────────────────────────────────────
-    const collected = [];
+    // ── RANK + BUDGET (verified A/B) ────────────────────────────────────────
+    const { tier1, tier2, tier3, tier6 } = this._rankVerifiedTechnologies(jdAnalysis, jobIdentity);
+    const { tier3Budget, tier6Budget } = this._computeComplementaryBudget(tier1.length, tier2.length);
+
+    // Per-category SOFT cap: a single category (e.g. Backend, when the JD's
+    // must-haves happen to cluster there) shouldn't be allowed to consume the
+    // entire budget while other relevant categories get nothing. Caps are
+    // soft — MUST/NICE HAVE (tier 1/2) always bypass them entirely; only
+    // tier 3/6 candidates are capped. If a category hits its cap but budget
+    // remains (other categories ran out of candidates), the second pass
+    // below fills the leftover from whoever's left, uncapped.
+    const SOFT_CATEGORY_CAP = {
+      "Frontend": 7, "Backend": 6, "Base de datos": 4, "DevOps / Cloud": 5,
+      "Storage": 3, "Seguridad": 3, "Mobile": 3, "AI / ML": 4, "Testing": 3,
+      "Herramientas": 4, "APIs / Integración": 3, "Pagos": 2, "Metodologías": 2,
+    };
+    const DEFAULT_CATEGORY_CAP = 5;
+    const categoryCount = new Map();
+    for (const e of [...tier1, ...tier2]) {
+      const c = categoryFor(e.tech);
+      categoryCount.set(c, (categoryCount.get(c) || 0) + 1);
+    }
+
+    // Distributes `list` into `out` respecting the shared per-category soft
+    // cap and its own budget limit. tier3 and tier6 are distributed as two
+    // separate calls (own budgets) but share `categoryCount`, so tier6 sees
+    // however much room tier3 already used in each category.
+    const distribute = (list, tierNum, budgetLimit) => {
+      const deferred = [];
+      let used = 0;
+      for (const entry of list) {
+        if (used >= budgetLimit) break;
+        const category = categoryFor(entry.tech);
+        const cap = SOFT_CATEGORY_CAP[category] ?? DEFAULT_CATEGORY_CAP;
+        const count = categoryCount.get(category) || 0;
+        if (count < cap) {
+          out.push({ ...entry, _tier: tierNum });
+          categoryCount.set(category, count + 1);
+          used++;
+        } else {
+          deferred.push(entry);
+        }
+      }
+      for (const entry of deferred) {
+        if (used >= budgetLimit) break;
+        out.push({ ...entry, _tier: tierNum });
+        used++;
+      }
+    };
+    const out = [];
+    distribute(tier3, 3, tier3Budget);
+    distribute(tier6, 6, tier6Budget);
+    const budgeted = out;
+
+    const collected = [
+      ...tier1.map((e) => ({ name: e.tech.name, normalized: e.tech.normalized, evidence: e.effective.category, category: categoryFor(e.tech), tier: 1 })),
+      ...tier2.map((e) => ({ name: e.tech.name, normalized: e.tech.normalized, evidence: e.effective.category, category: categoryFor(e.tech), tier: 2 })),
+      ...budgeted.map((e) => ({ name: e.tech.name, normalized: e.tech.normalized, evidence: e.effective.category, category: categoryFor(e.tech), tier: e._tier })),
+    ];
+
+    // ── C-tier JD-relevant tech → RECOVERABLE_CATEGORY (unchanged from before) ──
     for (const tech of TECHNOLOGY_EVIDENCE_MATRIX) {
       const effective = getEffectiveEvidence(tech.name);
-      if (effective.category === "A" || effective.category === "B") {
-        collected.push({ name: tech.name, normalized: tech.normalized, evidence: effective.category, category: categoryFor(tech) });
-      } else if (effective.category === "C" && jdScoreFor(tech.normalized)) {
+      if (effective.category === "C" && jdScoreFor(tech.normalized)) {
         // Learning-tier tech (e.g. Redis, GraphQL — anything NOT promoted by
         // EVIDENCE_OVERRIDES, since AWS is already effectively "B" by the time
         // it gets here) only appears when the JD actually calls for it, and
@@ -849,7 +1061,7 @@ Devuelve SOLO JSON válido:
         // category next to verified (A/B) tech. Placing "Redis" next to
         // "PostgreSQL, MongoDB" under "Base de datos" would visually claim
         // equal evidence for both, which is exactly what this phase forbids.
-        collected.push({ name: tech.name, normalized: tech.normalized, evidence: "C", category: RECOVERABLE_CATEGORY });
+        collected.push({ name: tech.name, normalized: tech.normalized, evidence: "C", category: RECOVERABLE_CATEGORY, tier: 4 });
       }
     }
 
@@ -873,6 +1085,7 @@ Devuelve SOLO JSON válido:
         if (!items) return null;
         const sorted = [...items.values()]
           .sort((a, b) => {
+            if (a.tier !== b.tier) return a.tier - b.tier;
             const jdA = jdScoreFor(a.normalized);
             const jdB = jdScoreFor(b.normalized);
             if (jdB !== jdA) return jdB - jdA;
@@ -1144,29 +1357,42 @@ Devuelve SOLO JSON válido:
   // Falls back to the pre-written summaryVariant from masterProfile if Claude fails.
 
   async _generateAdaptiveSummary(jobDescription, jdAnalysis, jobIdentity, baseSummary) {
-    // JD-relevance-first tech list, reusing classifyKeywordForRecovery() (the
-    // single source of truth for evidence+priority) instead of an arbitrary
-    // slice of the matrix. This is what makes the summary talk about "why this
-    // candidate fits THIS job" instead of dumping the whole stack evenly —
-    // e.g. a backend-Python JD shouldn't spend words on React Native/Mercado Pago.
+    // Explicit 3-tier keyword strategy for the Summary — reuses the same
+    // evidence+priority source of truth as everywhere else (classifyKeywordForRecovery
+    // / _priorityTierFor), plus a READ-ONLY call into _rankVerifiedTechnologies()
+    // (Skills' own complementary-tech ranking, untouched/unmodified here) instead
+    // of dumping the candidate's whole declared core stack:
+    //
+    //   HIGH   — must-have requirement, VERIFIED evidence. Always try to include.
+    //   MEDIUM — nice-to-have requirement, VERIFIED evidence. Include if space allows.
+    //   LOW    — VERIFIED technology that's a genuine complement to HIGH/MEDIUM
+    //            (same tier-3 signal Skills uses: core-stack cohesion or a shared
+    //            category/tag with an actual match) — not the whole profile, so
+    //            Python/Django/IA etc. no longer show up in a Node.js-only summary
+    //            just because they're part of the candidate's overall stack.
     const jdDecisions = (jdAnalysis.keywords || [])
       .map((kw) => this.classifyKeywordForRecovery(kw, jdAnalysis))
       .filter((d) => d.level === "VERIFIED" && d.matchedTech);
 
-    const priorityTechs = [...new Set(
+    const highTechs = [...new Set(
       jdDecisions.filter((d) => d.priority === "must_have").map((d) => d.matchedTech)
     )];
-    const secondaryJdTechs = [...new Set(
-      jdDecisions.filter((d) => d.priority !== "must_have").map((d) => d.matchedTech)
-        .filter((t) => !priorityTechs.includes(t))
+    const mediumTechs = [...new Set(
+      jdDecisions.filter((d) => d.priority === "nice_to_have").map((d) => d.matchedTech)
+        .filter((t) => !highTechs.includes(t))
     )];
 
-    // Filler only — the candidate's own core stack, used solely so the prompt's
-    // "allowed technologies" list isn't limited to JD overlap (Claude still
-    // needs to name the profile honestly), but it's explicitly framed as
-    // lower-priority than the two lists above.
-    const coreStack = (MASTER_PROFILE.positioning?.coreStack || [])
-      .filter((t) => !priorityTechs.includes(t) && !secondaryJdTechs.includes(t));
+    const { tier3 } = this._rankVerifiedTechnologies(jdAnalysis, jobIdentity);
+    let lowTechs = tier3
+      .map((e) => e.tech.name)
+      .filter((t) => !highTechs.includes(t) && !mediumTechs.includes(t))
+      .slice(0, 6);
+    if (highTechs.length === 0 && mediumTechs.length === 0 && lowTechs.length === 0) {
+      // Nothing in the JD matched the profile at all (very generic/short JD) —
+      // fall back to the candidate's declared core stack so there's still
+      // something concrete and verified to write about, per CASO D.
+      lowTechs = (MASTER_PROFILE.positioning?.coreStack || []).slice(0, 6);
+    }
 
     const requiredStr = (jdAnalysis.requiredSkills || []).slice(0, 10).join(", ");
     const secondaryStr = jobIdentity.secondary.length
@@ -1186,16 +1412,16 @@ TIPO DE PUESTO DETECTADO: ${jobIdentity.primary}${secondaryStr}
 DESCRIPCIÓN DEL PUESTO (extracto):
 ${(jobDescription || "").slice(0, 800)}
 
-SKILLS REQUERIDAS POR EL PUESTO: ${requiredStr}
+SKILLS REQUERIDAS POR EL PUESTO (contexto informativo — no todas están necesariamente en las listas de abajo): ${requiredStr}
 
-TECNOLOGÍAS PRIORITARIAS (verificadas en el perfil Y pedidas como MUST HAVE — mencionar primero, con más énfasis):
-${priorityTechs.join(", ") || "(ninguna coincidencia directa — usar el stack principal del perfil)"}
+HIGH PRIORITY — must-have de la oferta con evidencia VERIFICADA en el perfil (mencionar SIEMPRE que sea posible, con más énfasis):
+${highTechs.join(", ") || "(ninguna coincidencia directa — usar el stack principal del perfil)"}
 
-TECNOLOGÍAS SECUNDARIAS (verificadas y relevantes para esta oferta, pero menor prioridad):
-${secondaryJdTechs.join(", ") || "(ninguna)"}
+MEDIUM PRIORITY — nice-to-have de la oferta con evidencia VERIFICADA (mencionar si hay espacio, después de HIGH PRIORITY):
+${mediumTechs.join(", ") || "(ninguna)"}
 
-RESTO DEL STACK VERIFICADO (mencionar SOLO si sobra espacio y aporta valor real a ESTE puesto — no repartir el resumen equitativamente entre todas las tecnologías del perfil):
-${coreStack.join(", ")}
+LOW PRIORITY — tecnologías VERIFICADAS del perfil, complementarias y directamente relacionadas con las anteriores (mencionar como mucho 1-2, solo si suman valor real; NO es obligatorio usarlas):
+${lowTechs.join(", ") || "(ninguna)"}
 
 IDENTIDAD PROFESIONAL (REGLAS INMUTABLES):
 - La identidad real del candidato es: "${mainTitle}" con ${yearsExp}+ años de experiencia.
@@ -1210,11 +1436,12 @@ IDENTIDAD PROFESIONAL (REGLAS INMUTABLES):
 
 INSTRUCCIONES DE REDACCIÓN:
 - Escribe SOLO el párrafo del resumen. Sin títulos, sin comillas, sin JSON.
-- Longitud objetivo: 75-110 palabras.
-- PRIORIZÁ las tecnologías PRIORITARIAS. Usá las SECUNDARIAS si hay espacio. El RESTO DEL STACK solo si aporta valor real a esta oferta específica — no es obligatorio mencionarlo.
+- Longitud objetivo: 75-110 palabras (similar a la longitud actual — no generar un párrafo más largo).
+- Orden de prioridad estricto: HIGH PRIORITY primero (mencionar todas las que razonablemente entren), después MEDIUM PRIORITY si queda espacio, y como mucho 1-2 de LOW PRIORITY — nunca al revés, y nunca a costa de omitir algo de HIGH PRIORITY.
 - El resumen debe responder "¿por qué este candidato encaja con ESTE puesto?", no ser un inventario de todo lo que sabe.
 - NO mencionar tecnologías fuera de las tres listas de arriba.
 - NO mencionar ni implicar experiencia con tecnologías que no estén en esas listas (aunque aparezcan en la descripción del puesto).
+- NO repitas la misma tecnología más de una vez en el resumen.
 - NO inventar métricas, responsabilidades ni logros no documentados.
 - NO usar frases vacías ("apasionado por", "dinámico", "proactivo", "soy una persona...").
 - NO usar Markdown (sin **, sin #, sin *).
@@ -1293,6 +1520,20 @@ Resumen:`;
       const adaptiveProjects   = this.buildAdaptiveProjects(jobIdentity, jdAnalysis.keywords, undefined, jdAnalysis);
       const adaptiveSkills     = this.buildAdaptiveSkills(jobIdentity, jdAnalysis.keywords, jdAnalysis);
 
+      // Diagnostic snapshot of the content-budget decision behind adaptiveSkills
+      // (cheap, pure — recomputing here avoids changing buildAdaptiveSkills()'s
+      // return contract just to expose internals no one else needs).
+      const { tier1, tier2, tier3, tier6 } = this._rankVerifiedTechnologies(jdAnalysis, jobIdentity);
+      const { tier3Budget, tier6Budget } = this._computeComplementaryBudget(tier1.length, tier2.length);
+      const skillsBudget = {
+        mustHaveVerified:      tier1.length,
+        niceToHaveVerified:    tier2.length,
+        complementaryBudget:   { tier3Budget, tier6Budget },
+        complementaryAvailable: { tier3: tier3.length, tier6: tier6.length },
+        complementaryIncluded:  Math.min(tier3Budget, tier3.length) + Math.min(tier6Budget, tier6.length),
+        prunedFromCV: Math.max(0, tier3.length - tier3Budget) + Math.max(0, tier6.length - tier6Budget),
+      };
+
       // ── 4. Generate adapted summary + select title variant ───────────────────
       const baseSummary = this._selectSummaryVariant(jobIdentity);
       const summary     = await this._generateAdaptiveSummary(
@@ -1368,11 +1609,14 @@ Resumen:`;
           // Decision-support only — NOT rendered in the CV/PDF. See buildRequirementMatrix().
           requirementMatrix,
           gapAnalysis,
+          // Diagnostic only — NOT rendered. Shows how buildAdaptiveSkills()'s
+          // content budget decided what to include/prune for this CV.
+          skillsBudget,
         },
       };
 
       // ── 10. Validate structure and content ────────────────────────────────────
-      const { cv: validatedCV, warnings } = this.validateGeneratedCV(rawCV, jdAnalysis.keywords || []);
+      const { cv: validatedCV, warnings } = this.validateGeneratedCV(rawCV, jdAnalysis.keywords || [], jdAnalysis);
       if (warnings.length > 0) {
         console.warn("[optimizeCV] Validation warnings:", warnings.join(" | "));
       }
@@ -1672,6 +1916,68 @@ Resumen:`;
     // recoverMissingKeywords() already dedupe, this is a safety-net signal.
     const duplicateKeywords = this._detectDuplicateSkills(parsedCV.skills || []);
 
+    // Content focus — how much of what's shown in Skills is a direct MUST/NICE
+    // HAVE keyword match vs. complementary/generic verified tech. Diagnostic
+    // only; does not affect `score`. NOTE: a high non-match ratio isn't
+    // necessarily "noise" — tier-3 complementary tech (see
+    // _rankVerifiedTechnologies) is an intentional, evidence-based inclusion,
+    // not padding. This says "how keyword-dense is Skills", not "how much junk".
+    const skillItems = (parsedCV.skills || [])
+      .filter((sg) => sg.category !== RECOVERABLE_CATEGORY)
+      .flatMap((sg) => sg.items || []);
+    const directMatches = skillItems.filter((i) => this._priorityTierFor(i, jdAnalysis) !== "secondary");
+    const contentFocus = {
+      selectedTechnologies: skillItems.length,
+      directKeywordMatches: directMatches.length,
+      directMatchRatio: skillItems.length > 0
+        ? Math.round((directMatches.length / skillItems.length) * 100) / 100
+        : 0,
+    };
+
+    // Relevance density — reuses _rankVerifiedTechnologies() (no jobIdentity:
+    // membership doesn't depend on category display order) to see which
+    // VERIFIED complementary/secondary technologies made it into the CV vs.
+    // which were pruned by the content budget. Diagnostic only.
+    const { tier3: rdTier3, tier6: rdTier6 } = this._rankVerifiedTechnologies(jdAnalysis);
+    const presentNorms = new Set(skillItems.map((i) => this._normalize(i)));
+    const complementaryPool = [...rdTier3, ...rdTier6];
+    const relevanceDensity = {
+      mustHaveRelevant: (jdAnalysis.requiredSkills || [])
+        .filter((k) => this.calculateKeywordRelevance(k, jdAnalysis).score > 0),
+      niceToHaveRelevant: (jdAnalysis.niceToHaveSkills || [])
+        .filter((k) => this.calculateKeywordRelevance(k, jdAnalysis).score > 0),
+      complementary: complementaryPool
+        .filter((e) => presentNorms.has(e.tech.normalized)).map((e) => e.tech.name),
+      omittedLowRelevance: complementaryPool
+        .filter((e) => !presentNorms.has(e.tech.normalized)).map((e) => e.tech.name),
+      relevantKeywordCount: 0,
+      omittedKeywordCount: 0,
+    };
+    relevanceDensity.relevantKeywordCount =
+      relevanceDensity.mustHaveRelevant.length + relevanceDensity.niceToHaveRelevant.length + relevanceDensity.complementary.length;
+    relevanceDensity.omittedKeywordCount = relevanceDensity.omittedLowRelevance.length;
+
+    // Section relevance — how many MUST/NICE HAVE keywords appear in each
+    // section's actual text. Simple presence count (not a new scoring
+    // system); diagnostic only, per explicit "only if simple" request.
+    const relevantKwSet = [...requiredSkills, ...niceToHaveSkills];
+    const countRelevantIn = (text) => {
+      const norm = this._normalize(text || "");
+      return relevantKwSet.filter((kw) => norm.includes(kw)).length;
+    };
+    const expArr = parsedCV.experience || [];
+    const projIdx = expArr.findIndex((e) =>
+      /proyecto[s]?\s+destacados?/i.test(e.role || "") || /proyecto[s]?\s+destacados?/i.test(e.company || "")
+    );
+    const regularExpArr = projIdx === -1 ? expArr : expArr.slice(0, projIdx);
+    const projectExpArr = projIdx === -1 ? [] : expArr.slice(projIdx + 1);
+    const sectionRelevance = {
+      summary:    countRelevantIn(parsedCV.summary || ""),
+      experience: countRelevantIn(regularExpArr.flatMap((e) => e.achievements || []).join(" ")),
+      projects:   countRelevantIn(projectExpArr.flatMap((e) => e.achievements || []).join(" ")),
+      skills:     countRelevantIn(skillItems.join(" ")),
+    };
+
     return {
       score: Math.min(100, Math.max(0, totalScore)),
       confidence,
@@ -1692,6 +1998,9 @@ Resumen:`;
       evidenceBreakdown,
       placementQuality,
       duplicateKeywords,
+      contentFocus,
+      relevanceDensity,
+      sectionRelevance,
       recommendations: this._generateRecommendations(
         keywordsFound, keywordsMissing, skillsMatched, skillsMissing, parsedCV
       ),
@@ -1877,7 +2186,7 @@ Resumen:`;
   // Returns: { valid, warnings[], fixes[], cv }
   // When auto-fixable issues are found, returns the fixed cv.
 
-  validateGeneratedCV(cv, jdKeywords = []) {
+  validateGeneratedCV(cv, jdKeywords = [], jdAnalysis = null) {
     const warnings = [];
     const fixes    = [];
     let   out      = { ...cv };  // shallow copy — we'll rebuild modified arrays as needed
@@ -1958,25 +2267,33 @@ Resumen:`;
       warnings.push(`EVIDENCE_VIOLATION: D-level techs in main skills: ${dLevelInMain.join(", ")}`);
     }
 
-    // 7b. Skills integrity — every A/B technology in the master profile must be
-    // present somewhere in skills[]. Catches silent tech loss (the root cause
-    // behind the old SKILL_TEMPLATES pools) if it were ever reintroduced.
-    const outSkillNorms = new Set(
-      (out.skills || []).flatMap((sg) => sg.items || []).map((i) => this._normalize(i))
-    );
-    const expectedAB = TECHNOLOGY_EVIDENCE_MATRIX.filter((t) => {
-      const eff = getEffectiveEvidence(t.name);
-      return eff.category === "A" || eff.category === "B";
-    });
-    // Compare using this._normalize(t.name) (NOT t.normalized) — the matrix's
-    // hand-authored "normalized" field isn't always identical to what
-    // _normalize() computes (e.g. "REST APIs" is authored as "rest api"),
-    // while outSkillNorms is built with _normalize() on the rendered item text.
-    const missingFromSkills = expectedAB
-      .filter((t) => !outSkillNorms.has(this._normalize(t.name)))
-      .map((t) => t.name);
-    if (missingFromSkills.length > 0) {
-      warnings.push(`SKILLS_INTEGRITY: verified technologies missing from skills[]: ${missingFromSkills.join(", ")}`);
+    // 7b. Skills integrity — a MUST HAVE / NICE TO HAVE requirement with VERIFIED
+    // evidence must never be missing from skills[]. (Previously this checked
+    // the FULL A/B set — but buildAdaptiveSkills() now deliberately prunes
+    // non-JD-relevant verified tech from the generated CV per content-budget
+    // design, so "not every A/B tech is present" is expected, not a bug.
+    // What must NEVER happen is losing an actual keyword match — tier 1/2 in
+    // _rankVerifiedTechnologies() are supposed to be unconditional.)
+    if (jdAnalysis) {
+      const outSkillNorms = new Set(
+        (out.skills || []).flatMap((sg) => sg.items || []).map((i) => this._normalize(i))
+      );
+      const expectedMatched = TECHNOLOGY_EVIDENCE_MATRIX.filter((t) => {
+        const eff = getEffectiveEvidence(t.name);
+        if (!eff || (eff.category !== "A" && eff.category !== "B")) return false;
+        const priority = this._priorityTierFor(t.name, jdAnalysis);
+        return priority === "must_have" || priority === "nice_to_have";
+      });
+      // Compare using this._normalize(t.name) (NOT t.normalized) — the matrix's
+      // hand-authored "normalized" field isn't always identical to what
+      // _normalize() computes (e.g. "REST APIs" is authored as "rest api"),
+      // while outSkillNorms is built with _normalize() on the rendered item text.
+      const missingFromSkills = expectedMatched
+        .filter((t) => !outSkillNorms.has(this._normalize(t.name)))
+        .map((t) => t.name);
+      if (missingFromSkills.length > 0) {
+        warnings.push(`SKILLS_INTEGRITY: JD-matched verified technologies missing from skills[]: ${missingFromSkills.join(", ")}`);
+      }
     }
 
     // 8. Personal info completeness
@@ -2089,6 +2406,61 @@ Resumen:`;
       preferredCategory: this._classifySkillCategory(kwNorm),
       wording: "Mencionada en la oferta — sin evidencia confirmada en el perfil.",
       matchedTech: null,
+    };
+  }
+
+  // ─── FASE 8: calculateKeywordRelevance ─────────────────────────────────────────
+  //
+  // Single deterministic relevance score for "should this keyword/technology
+  // appear in the adapted CV, and how much weight should it get". Reuses
+  // classifyKeywordForRecovery() (evidence + must/nice/secondary priority) as
+  // its source of truth rather than re-deriving evidence/priority logic —
+  // this is a scoring layer on top of it, not a parallel classifier.
+  //
+  // `context` (optional) lets a caller nudge the score with situational info
+  // it already has and this function doesn't:
+  //   context.isComplementary — true if the caller has independently determined
+  //     this is a same-category/tag/core-stack complement (see
+  //     _rankVerifiedTechnologies()) rather than a direct JD match.
+  //   context.section — "summary" | "experience" | "projects" | "skills",
+  //     informational only; doesn't change the score, just echoed back so a
+  //     caller can log/inspect *where* a relevance decision applies.
+  //
+  // Score bands (0-100, informational — nothing downstream currently gates on
+  // an exact threshold, callers compare relative scores):
+  //   100  must-have, verified            70  nice-have, verified
+  //    55  must-have, recoverable         35  nice-have, recoverable
+  //    45  complementary, verified        20  secondary, verified
+  //    15  secondary, recoverable          0  unsupported (never included)
+
+  calculateKeywordRelevance(keyword, jdAnalysis, context = {}) {
+    const decision = this.classifyKeywordForRecovery(keyword, jdAnalysis);
+    let score = 0;
+
+    if (decision.level === "VERIFIED") {
+      if (decision.priority === "must_have") score = 100;
+      else if (decision.priority === "nice_to_have") score = 70;
+      else score = context.isComplementary ? 45 : 20;
+    } else if (decision.level === "RECOVERABLE") {
+      if (decision.priority === "must_have") score = 55;
+      else if (decision.priority === "nice_to_have") score = 35;
+      else score = 15;
+    }
+    // UNSUPPORTED stays 0 — never worth including (see NON_TECH_TERMS).
+
+    return {
+      keyword,
+      normalizedKeyword: decision.normalizedKeyword,
+      level: decision.level,
+      priority: decision.priority,
+      matchedTech: decision.matchedTech,
+      category: decision.preferredCategory,
+      isComplementary: !!context.isComplementary,
+      section: context.section || null,
+      score,
+      // A quick, non-exhaustive omission signal for callers doing budget
+      // decisions: below this, a technology is adding more noise than signal.
+      worthIncluding: score >= 15,
     };
   }
 
@@ -2349,6 +2721,13 @@ Resumen:`;
     };
     const norm = this._normalize(kw);
     if (MAP[norm]) return MAP[norm];
+    // Alias fallback: a JD phrasing like "RESTful APIs" or "Node" won't hit
+    // MAP directly, but its alias group (already used for evidence lookup and
+    // dedup elsewhere) does — reuse it here instead of falling through to a
+    // raw capitalize, which would render "Restful apis" instead of "REST API".
+    for (const alias of (ALIAS_MAP.get(norm) || [])) {
+      if (MAP[alias]) return MAP[alias];
+    }
     if (kw.length <= 4 && !kw.includes(" ")) return kw.toUpperCase();
     return kw.charAt(0).toUpperCase() + kw.slice(1);
   }
