@@ -387,16 +387,21 @@ export class ATSOptimizerService {
   _priorityTierFor(keyword, jdAnalysis) {
     if (!jdAnalysis) return "secondary";
     const norm = this._normalize(keyword);
-    // Exact match or substring containment only (e.g. "postgres" ⊂ "postgresql",
-    // "docker" ⊂ "docker compose"). A bare shared-prefix heuristic used to live
-    // here too, but a 4-char prefix is too weak a signal for short-ish tech
-    // names — e.g. "Postman" and "PostgreSQL" both start with "post" and would
-    // false-positive-match despite being unrelated. Aliases (react/reactjs,
-    // node/nodejs, etc.) are resolved upstream via getEffectiveEvidence(), so
-    // this function doesn't need its own fuzzy fallback for those.
+    // BUG FIX: multi-word technology names (e.g. matrix name "React Native",
+    // which _normalize() keeps AS "react native" — spaces are collapsed, not
+    // stripped) don't match a common no-space JD phrasing like "ReactNative"/
+    // "React-Native" (_normalize() -> "reactnative"), even though ALIAS_GROUPS
+    // already declares them the same technology. That silently misclassified
+    // an explicit MUST HAVE "React Native" as "secondary" priority, letting it
+    // get pruned by the Skills content budget while single-word siblings like
+    // "React"/"Expo" (unaffected by this space-vs-no-space mismatch) survived
+    // normally. Consult the same ALIAS_MAP used elsewhere (getEffectiveEvidence,
+    // recoverMissingKeywords) before falling back to containment/ratio.
+    const normAliases = ALIAS_MAP.get(norm) || [];
     const hits = (list) => (list || []).some((k) => {
       const kn = this._normalize(k);
       if (kn === norm) return true;
+      if (normAliases.includes(kn) || (ALIAS_MAP.get(kn) || []).includes(norm)) return true;
       // Guard containment matching against short strings (e.g. "Go" ⊂ "Django")
       // — below 3 chars a substring hit is coincidence, not relatedness.
       if (Math.min(kn.length, norm.length) < 3) return false;
@@ -1291,13 +1296,46 @@ Devuelve SOLO JSON válido:
       const esc = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       return new RegExp(`\\b${esc}\\b`, "i").test(text);
     };
+
+    // Preserves selectProjects()'s own strength/prioritize/deprioritize order
+    // as a small tiebreaker below ("relevancia respecto al tipo de puesto") —
+    // otherwise it's fully discarded the moment the keyword re-sort runs.
+    const originalRank = new Map(selected.map((p, i) => [p.id, i]));
+
     const jdScore = (project) => {
-      const text = [project.name, project.description, ...project.technologies, ...project.achievements]
-        .join(" ").toLowerCase();
+      // BUG FIX: JD keywords are normalized (dots/dashes stripped — "Node.js"
+      // -> "nodejs"), but the project's own text was only .toLowerCase()'d.
+      // "node.js" in a technologies array never matched JD keyword "nodejs"
+      // because the literal dot breaks \b word-boundary matching — silently
+      // zeroing out matches for every dotted tech name (Node.js, Express.js,
+      // Next.js...). That's why a project genuinely built with React + Node.js
+      // + Express.js could score at or below an unrelated one. Normalizing
+      // both sides the same way fixes it.
+      const text = this._normalize(
+        [project.name, project.description, ...project.technologies, ...project.achievements].join(" ")
+      );
       let score = 0;
       for (const kw of jdNorms)   if (wordHit(text, kw)) score += 1;
       for (const kw of niceNorms) if (wordHit(text, kw)) score += 1;
       for (const kw of mustNorms) if (wordHit(text, kw)) score += 2;
+
+      // Mild penalty ONLY when the project's own declared tech stack is almost
+      // entirely unrelated to this JD — never for "mostly relevant + a couple
+      // of extras" (e.g. React + Node + MongoDB + Socket.io for a React +
+      // Node + PostgreSQL JD keeps a high relevant ratio and is NOT penalized
+      // just for having Socket.io too).
+      const techNorms = (project.technologies || []).map((t) => this._normalize(t));
+      const relevantTechCount = techNorms.filter((t) =>
+        [...mustNorms, ...niceNorms].some((kw) => wordHit(t, kw))
+      ).length;
+      if (techNorms.length >= 4 && relevantTechCount / techNorms.length < 0.15) score -= 1;
+
+      // Small role-type tiebreaker (deliberately worth less than a single
+      // keyword match) — never overrides real keyword relevance, only breaks
+      // ties between otherwise-similar projects.
+      const rank = originalRank.get(project.id);
+      if (rank !== undefined) score += (selected.length - rank) * 0.1;
+
       return score;
     };
 
@@ -1978,6 +2016,82 @@ Resumen:`;
       skills:     countRelevantIn(skillItems.join(" ")),
     };
 
+    // ─── Contextual coverage (diagnostic only — no placement decisions here) ──
+    //
+    // Per-PRIORITY-keyword (must_have/nice_to_have — see _priorityTierFor),
+    // which sections already mention it. This does NOT select, reorder, or
+    // rewrite anything: Experience/Projects bullets are pre-written text from
+    // MASTER_PROFILE (buildAdaptiveExperience/buildAdaptiveProjects already
+    // rank them by JD relevance), Skills/Summary are built by their own
+    // untouched logic — this only *reports* where that existing selection
+    // already produced contextual reinforcement vs. a keyword that only ever
+    // shows up once, in Skills.
+    //
+    // RECOVERABLE/UNSUPPORTED keywords are included too, but only to make the
+    // no-fabrication guarantee visible: their sections.experience/.projects
+    // must always read false (nothing ever writes a recoverable tech into an
+    // achievement) — if a test ever sees `true` there, that's a real bug.
+    const summaryTextNorm    = this._normalize(parsedCV.summary || "");
+    const experienceTextNorm = this._normalize(regularExpArr.flatMap((e) => e.achievements || []).join(" "));
+    const projectsTextNorm   = this._normalize(projectExpArr.flatMap((e) => e.achievements || []).join(" "));
+    // NOTE: uses ALL skill items, including RECOVERABLE_CATEGORY ("Tecnologías
+    // relevantes") — unlike `skillItems` above (used by contentFocus, which
+    // deliberately excludes it to measure natural-category placement quality).
+    // A keyword recovered into "Tecnologías relevantes" is still visibly
+    // present in the CV's Skills section, so it must count as covered here.
+    const allSkillItems     = (parsedCV.skills || []).flatMap((sg) => sg.items || []);
+    const skillsTextNorm    = this._normalize(allSkillItems.join(" "));
+
+    const priorityDecisions = [...new Set([...(jdAnalysis.requiredSkills || []), ...(jdAnalysis.niceToHaveSkills || [])])]
+      .map((kw) => this.classifyKeywordForRecovery(kw, jdAnalysis))
+      .filter((d) => d.priority === "must_have" || d.priority === "nice_to_have");
+
+    const perKeyword = {};
+    for (const d of priorityDecisions) {
+      const key = d.matchedTech || d.keyword;
+      if (perKeyword[key]) continue; // two JD phrasings resolving to the same tech — keep first (must_have wins, required is spread first)
+      const nameNorm = this._normalize(d.matchedTech || d.keyword);
+      const sections = {
+        summary:    summaryTextNorm.includes(nameNorm),
+        experience: experienceTextNorm.includes(nameNorm),
+        projects:   projectsTextNorm.includes(nameNorm),
+        skills:     skillsTextNorm.includes(nameNorm),
+      };
+      perKeyword[key] = {
+        priority: d.priority,
+        level: d.level,
+        sections,
+        sectionsCovered: Object.values(sections).filter(Boolean).length,
+      };
+    }
+
+    // Rollups scoped to VERIFIED priority keywords only — coverage of a
+    // RECOVERABLE keyword beyond Skills isn't a meaningful "reinforce it more"
+    // signal, since Experience/Projects must never claim it.
+    const verifiedKeys = Object.keys(perKeyword).filter((k) => perKeyword[k].level === "VERIFIED");
+    const withContextualEvidence = verifiedKeys.filter((k) =>
+      perKeyword[k].sections.summary || perKeyword[k].sections.experience || perKeyword[k].sections.projects
+    ).length;
+    const skillsOnly  = verifiedKeys.filter((k) => perKeyword[k].sectionsCovered === 1 && perKeyword[k].sections.skills).length;
+    const notPresent  = verifiedKeys.filter((k) => perKeyword[k].sectionsCovered === 0).length;
+
+    const contextualCoverage = {
+      perKeyword,
+      priorityKeywordCoverage: {
+        total: verifiedKeys.length,
+        withContextualEvidence, // appears in Summary/Experience/Projects, not just listed in Skills
+        skillsOnly,
+        notPresent,
+        ratio: verifiedKeys.length > 0 ? Math.round((withContextualEvidence / verifiedKeys.length) * 100) / 100 : 0,
+      },
+      sectionCoverage: {
+        summary:    verifiedKeys.filter((k) => perKeyword[k].sections.summary).length,
+        experience: verifiedKeys.filter((k) => perKeyword[k].sections.experience).length,
+        projects:   verifiedKeys.filter((k) => perKeyword[k].sections.projects).length,
+        skills:     verifiedKeys.filter((k) => perKeyword[k].sections.skills).length,
+      },
+    };
+
     return {
       score: Math.min(100, Math.max(0, totalScore)),
       confidence,
@@ -2001,6 +2115,7 @@ Resumen:`;
       contentFocus,
       relevanceDensity,
       sectionRelevance,
+      contextualCoverage,
       recommendations: this._generateRecommendations(
         keywordsFound, keywordsMissing, skillsMatched, skillsMissing, parsedCV
       ),
@@ -2485,11 +2600,24 @@ Resumen:`;
       const kwNorm = this._normalize(kw);
       if (!kwNorm || kwNorm.split(" ").length > 3) continue;
 
-      // Skip if already present (exact, alias, or fuzzy prefix match)
+      // Skip if already present (exact or alias match)
       if (existingNorm.has(kwNorm) || (ALIAS_MAP.get(kwNorm) || []).some((a) => existingNorm.has(a))) continue;
-      if (kwNorm.length >= 4) {
-        const prefix = kwNorm.slice(0, 4);
-        if ([...existingNorm].some((e) => e.length >= 4 && (e.startsWith(prefix) || kwNorm.startsWith(e.slice(0, 4))))) continue;
+      // BUG FIX: this used to be a bare 4-char shared-prefix check (e.g. "git"
+      // vs "github", or "reactnative" vs "react" — both share a 4-char prefix
+      // but are different technologies), which wrongly treated a genuinely
+      // distinct JD keyword as "already present" and silently dropped it —
+      // e.g. "ReactNative"/"React-Native" (normalizes to "reactnative", no
+      // space) got skipped as a false duplicate of an already-listed "React"
+      // ("reac" prefix match), so React Native could never be recovered even
+      // when it was legitimately missing. Same containment + length-ratio
+      // guard already used in _priorityTierFor() for the identical reason.
+      if (kwNorm.length >= 3) {
+        const isNearDuplicate = [...existingNorm].some((e) => {
+          if (e.length < 3 || !(e.includes(kwNorm) || kwNorm.includes(e))) return false;
+          const ratio = Math.min(e.length, kwNorm.length) / Math.max(e.length, kwNorm.length);
+          return ratio >= 0.6;
+        });
+        if (isNearDuplicate) continue;
       }
 
       const decision = this.classifyKeywordForRecovery(kw, jdAnalysis);
