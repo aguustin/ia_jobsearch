@@ -285,11 +285,11 @@ function SkillsSection({ skills, update, moveSection, sectionOrder }) {
               </Stack>
             </DroppableCategory>
           ))}
-          {skills.some((sg) => /stack\s+adicional|tecnolog[ií]as\s+relevantes/i.test(sg.category) && (sg.items || []).length > 0) && (
+          {skills.some((sg) => /stack\s+adicional|tecnolog[ií]as\s+adicionales/i.test(sg.category) && (sg.items || []).length > 0) && (
             <Box sx={{ display: "flex", gap: 0.75, p: 1, bgcolor: "rgba(255,183,77,0.05)", borderRadius: 1, border: "1px solid rgba(255,183,77,0.12)" }}>
               <InfoOutlined sx={{ fontSize: 13, color: "warning.main", mt: 0.15, flexShrink: 0 }} />
               <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.5 }}>
-                Las keywords en <Box component="span" sx={{ color: "warning.light", fontWeight: 600 }}>Tecnologías relevantes / Stack adicional</Box> se recuperaron de la oferta para mejorar el matching ATS, pero no tenés experiencia profesional verificada en ellas. Revisalas y eliminá las que no correspondan — no las presentes como experiencia real en tus logros.
+                Las keywords en <Box component="span" sx={{ color: "warning.light", fontWeight: 600 }}>Tecnologías adicionales / Stack adicional</Box> se recuperaron de la oferta para mejorar el matching ATS, pero no tenés experiencia profesional verificada en ellas. Revisalas y eliminá las que no correspondan — no las presentes como experiencia real en tus logros.
               </Typography>
             </Box>
           )}

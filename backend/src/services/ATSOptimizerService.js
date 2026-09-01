@@ -137,7 +137,7 @@ for (const group of ALIAS_GROUPS) {
 // clearly-labeled list, same spirit as the "TECHNICAL KEYWORDS" example.
 // VERIFIED (A/B, incl. the AWS override) keywords still land in their natural
 // per-domain category, same as before.
-const RECOVERABLE_CATEGORY = "Tecnologías relevantes";
+const RECOVERABLE_CATEGORY = "Tecnologías adicionales";
 
 // Meta-descriptors on TECHNOLOGY_EVIDENCE_MATRIX's `tags` field that classify
 // WHAT KIND of thing a technology is, not what domain/context it serves.
@@ -381,7 +381,7 @@ export class ATSOptimizerService {
   // classifyKeywordForRecovery) to drive placement decisions: must_have +
   // verified deserves top billing; secondary + recoverable is the first thing
   // to drop when a section runs out of room. Reused by classifyKeywordForRecovery(),
-  // recoverMissingKeywords() (sorting the "Tecnologías relevantes" bucket), and
+  // recoverMissingKeywords() (sorting the "Tecnologías adicionales" bucket), and
   // buildAdaptiveExperience() (weighting which achievement bullets surface).
 
   _priorityTierFor(keyword, jdAnalysis) {
@@ -2035,9 +2035,9 @@ Resumen:`;
     const experienceTextNorm = this._normalize(regularExpArr.flatMap((e) => e.achievements || []).join(" "));
     const projectsTextNorm   = this._normalize(projectExpArr.flatMap((e) => e.achievements || []).join(" "));
     // NOTE: uses ALL skill items, including RECOVERABLE_CATEGORY ("Tecnologías
-    // relevantes") — unlike `skillItems` above (used by contentFocus, which
+    // adicionales") — unlike `skillItems` above (used by contentFocus, which
     // deliberately excludes it to measure natural-category placement quality).
-    // A keyword recovered into "Tecnologías relevantes" is still visibly
+    // A keyword recovered into "Tecnologías adicionales" is still visibly
     // present in the CV's Skills section, so it must count as covered here.
     const allSkillItems     = (parsedCV.skills || []).flatMap((sg) => sg.items || []);
     const skillsTextNorm    = this._normalize(allSkillItems.join(" "));
@@ -2449,7 +2449,7 @@ Resumen:`;
   //          category (Frontend/Backend/...), same as everything else there.
   //   RECOVERABLE (C-tier like Redis/GraphQL, D-tier like FastAPI, or simply
   //          unknown to the matrix, e.g. Athena/Poetry) — inserted into the
-  //          dedicated RECOVERABLE_CATEGORY ("Tecnologías relevantes") instead
+  //          dedicated RECOVERABLE_CATEGORY ("Tecnologías adicionales") instead
   //          of the natural category, so it never reads as equally-proven next
   //          to verified tech. Never omitted outright — the user reviews/removes
   //          manually — UNLESS it's a non-technology practice/soft-skill term
@@ -2473,7 +2473,7 @@ Resumen:`;
   // `jdAnalysis` (optional) additionally tags a `priority` — must_have /
   // nice_to_have / secondary — used to rank keywords within the same evidence
   // level (e.g. a must-have RECOVERABLE tech outranks a secondary one when the
-  // "Tecnologías relevantes" bucket has to be capped — see recoverMissingKeywords()).
+  // "Tecnologías adicionales" bucket has to be capped — see recoverMissingKeywords()).
 
   classifyKeywordForRecovery(keyword, jdAnalysis = null) {
     const kwNorm = this._normalize(keyword);

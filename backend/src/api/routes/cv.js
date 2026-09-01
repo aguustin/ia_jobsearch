@@ -113,7 +113,7 @@ router.post("/generate-ats", async (req, res) => {
     // recoverMissingKeywords() places A/B-evidence tech normally, C-tier (e.g. AWS)
     // in its proper category (not hidden), and D/unverified tech for manual review —
     // it never fabricates achievements, only adds Skills entries the user can edit/remove.
-    // Passing jdAnalysis lets it rank/cap the "Tecnologías relevantes" bucket by
+    // Passing jdAnalysis lets it rank/cap the "Tecnologías adicionales" bucket by
     // must-have > nice-to-have > secondary priority instead of raw JD order.
     const optimizedCVWithKeywords = atsOptimizerService.recoverMissingKeywords(
       optimizedCV, jdAnalysis.keywords, jdAnalysis
